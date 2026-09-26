@@ -153,3 +153,84 @@ real:
    orden se deriva de la suma.
 5. Partir la UI por módulos (orders, production, delivery, customers,
    catalog, settings) en lugar de archivos de miles de líneas.
+
+---
+
+# Anexo: laundry-saas (primer intento multi-tenant)
+
+Revisión de `TTCMX/laundry-saas` (último commit 2026-06-09). Es un fork de
+una versión anterior de laundry-os al que se le agregó Supabase Auth,
+tenants, RLS, invitaciones, multi-sucursal y billing con Stripe. La
+operación (`App.jsx` 3.8k líneas, `Admin.jsx` 2k) sigue siendo la de La
+Laundry, anterior a `lib/precios.js` y `lib/fases.js`.
+
+## Qué rescatar
+
+- **Onboarding SaaS completo**: signup, verificación de correo, forgot/reset
+  password, `create_tenant` (RPC security definer que crea tenant + admin en
+  una transacción), `TenantContext`, `ProtectedRoute`.
+- **Invitaciones por token** (`tenant_invitations` + `accept_invite`) con
+  `select ... for update` contra doble aceptación, expiración y un solo uso.
+- **Helpers `get_my_tenant_id()` / `get_my_role()` security definer** para
+  que las políticas no consulten `tenant_users` directamente (evita la
+  recursión que ya les pasó, documentada en `migration_fix_rls_recursion.sql`).
+- **Audit log inmutable por RLS** (`update`/`delete` con `using (false)`).
+- **Webhook de Stripe con verificación de firma** sobre el raw body.
+- **Idea de producto**: planes por tipo de operación (tradicional, delivery,
+  híbrida) y walk-in vs delivery como tipo de orden. Encaja con el principio
+  de "core universal + configuración".
+- `REPLICA IDENTITY FULL` para que Realtime filtre por `tenant_id` en
+  deletes.
+
+## Problemas encontrados
+
+1. **Escalada de privilegios entre tenants (crítico).** Tras el fix de
+   recursión, las políticas vigentes de `tenant_users` son
+   `insert with check (user_id = auth.uid())` y
+   `update using (user_id = auth.uid())`. Cualquier usuario registrado puede
+   insertarse en el tenant que quiera con `role = 'admin'`, o subirse a admin
+   en el suyo, directamente con la anon key. Las altas en `tenant_users`
+   solo deberían ocurrir vía `create_tenant` / `accept_invite`.
+2. **Roles con `limit 1` sin orden**: `get_my_tenant_id()` y `get_my_role()`
+   toman una fila cualquiera. Con más de un tenant por usuario (consultores,
+   dueños de varias lavanderías) el resultado es indeterminado; hoy se
+   "resuelve" prohibiendo pertenecer a más de uno.
+3. **Roles fijos** en un `check` (`admin`, `staff`, `driver`): no hay RBAC.
+4. **RLS de escritura demasiado amplia**: cualquier miembro (incluido un
+   driver) puede editar cualquier pedido o cliente del tenant; `configuracion`
+   es `for all` para todos los miembros. Los permisos por rol siguen en el
+   frontend.
+5. **Dos modelos en paralelo**: `orders`/`customers`/`tenant_services`
+   (schema.sql, inglés) y `pedidos`/`clientes`/`skus` (migration_v2, español).
+   La app usa el segundo; el primero quedó huérfano.
+6. **`tenant_id` en tablas hijas sin FK compuesta**: nada impide que un
+   pedido del tenant A apunte a un cliente del tenant B.
+7. **Mismos datos personales en el repo** (`clientes_laundry.json`,
+   `pedidos_laundry.json`) y scripts de parche de La Laundry.
+8. Migraciones sueltas en la raíz sin orden ni herramienta; el fix de
+   recursión se aplicó a mano en el SQL Editor.
+9. `invite_user_to_tenant` (schema.sql) permite a un admin asignar cualquier
+   rol sin validar `p_role`, y busca en `auth.users` por email: sigue
+   existiendo junto a la versión con tokens.
+
+## Conclusión
+
+La capa SaaS (auth, tenants, invitaciones, onboarding, billing) es la parte
+reutilizable como referencia de flujo, no como código: hay que rehacer las
+políticas desde cero. La capa operativa no aporta nada frente a laundry-os,
+que tiene la versión más madura de pricing y fases.
+
+Para Dark Laundry OS:
+
+- Membresías `tenant_members(tenant_id, user_id, role_id)` escritas solo por
+  RPCs; políticas con `exists (select 1 from tenant_members ...)` a través de
+  funciones security definer que reciben el `tenant_id` de la fila, así un
+  usuario puede pertenecer a varios tenants sin ambigüedad.
+- `roles` / `permissions` / `role_permissions` por tenant, con un helper
+  `has_permission(tenant_id, 'orders.update')` usado en políticas y RPCs.
+- FKs compuestas `(tenant_id, id)` en tablas hijas.
+- Migraciones versionadas con Supabase CLI y tests de RLS (usuario de tenant
+  A no ve ni escribe nada de B; driver no edita catálogo; nadie se
+  auto-asigna rol).
+- El billing SaaS (Stripe) queda fuera del MVP operativo, pero el modelo de
+  tenant deja preparado `plan` / `plan_status`.
