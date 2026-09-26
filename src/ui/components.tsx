@@ -338,7 +338,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const show = useCallback((message: string, opts?: { error?: boolean; action?: Toast["action"] }) => {
     const id = Date.now() + Math.random();
-    setToasts((t) => [...t.slice(-2), { id, message, ...opts }]);
+    setToasts((t) => [...t.filter((x) => x.message !== message).slice(-2), { id, message, ...opts }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), opts?.error ? 7000 : 4000);
   }, []);
   useEffect(() => {

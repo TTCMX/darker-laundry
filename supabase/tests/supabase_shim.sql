@@ -1,8 +1,11 @@
 -- Minimal stand-in for the parts of Supabase the migrations rely on, so the
 -- database tests run on plain Postgres (locally and in CI).
-create role anon nologin;
-create role authenticated nologin;
-create role service_role nologin bypassrls;
+do $$
+begin
+  if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon nologin; end if;
+  if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated nologin; end if;
+  if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role nologin bypassrls; end if;
+end $$;
 grant anon, authenticated, service_role to current_user;
 
 create schema auth;

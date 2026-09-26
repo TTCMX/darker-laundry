@@ -129,6 +129,7 @@ function Products({ products, categories }: { products: Product[]; categories: C
         {shown.length === 0 ? (
           <Empty icon="sell" title="Sin servicios">
             Crea los servicios que ofreces: lavado por kilo, camisas, edredones, tenis…
+            {products.length === 0 && <SampleCatalogButton />}
           </Empty>
         ) : (
           <div className="table-wrap">
@@ -249,6 +250,52 @@ function ProductDialog({ product, categories, onClose }: { product: Product | nu
         }}
       />
     </Dialog>
+  );
+}
+
+const SAMPLE: { category: string; items: [string, string, number, boolean?][] }[] = [
+  { category: "Lavandería", items: [["Lavado y doblado", "kg", 3500], ["Edredón matrimonial", "piece", 18000], ["Cobija", "piece", 12000]] },
+  { category: "Planchado", items: [["Camisa", "piece", 4500], ["Pantalón", "piece", 5000], ["Vestido", "piece", 9000]] },
+  { category: "Tintorería", items: [["Traje dos piezas", "piece", 22000], ["Abrigo", "piece", 25000], ["Tintorería especial", "piece", 0, true]] },
+  { category: "Especiales", items: [["Tenis", "pair", 15000], ["Cortinas", "m2", 6000]] },
+];
+
+function SampleCatalogButton() {
+  const { tenantId } = useTenant();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const [loading, setLoading] = useState(false);
+  const load = async () => {
+    setLoading(true);
+    try {
+      for (const [i, group] of SAMPLE.entries()) {
+        const { data: cat, error } = await supabase.from("product_categories").insert({ tenant_id: tenantId, name: group.category, sort_order: i }).select().single();
+        if (error) throw error;
+        const { error: e2 } = await supabase.from("products").insert(
+          group.items.map(([name, unit, price, variable], j) => ({
+            tenant_id: tenantId,
+            category_id: cat.id,
+            name,
+            unit,
+            base_price_cents: price,
+            variable_price: !!variable,
+            sort_order: j,
+          })),
+        );
+        if (e2) throw e2;
+      }
+      qc.invalidateQueries({ queryKey: ["catalog"] });
+      toast.show("Catálogo de ejemplo cargado. Ajusta los precios a los tuyos.");
+    } catch (err) {
+      toast.show(errorMessage(err), { error: true });
+    } finally {
+      setLoading(false);
+    }
+  };
+  return (
+    <Button variant="tonal" icon="auto_awesome" onClick={load} loading={loading}>
+      Cargar catálogo de ejemplo
+    </Button>
   );
 }
 

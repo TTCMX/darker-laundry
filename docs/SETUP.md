@@ -1,0 +1,171 @@
+# Puesta en marcha: Supabase + Vercel en una sola pasada
+
+Tiempo estimado: 30–45 minutos. Al final tendrás la app en línea, con base de datos, login, pagos en línea (opcional) y correos (opcional).
+
+> Todo lo que está en **negritas y monoespaciado** (`así`) se copia tal cual.
+
+---
+
+## 0. Antes de empezar
+
+Necesitas cuentas en:
+
+- **GitHub**: el código ya está en `TTCMX/darker-laundry`.
+- **Supabase**: base de datos, login y archivos.
+- **Vercel**: hosting de la app y de las funciones `/api`.
+- Opcional: **MercadoPago** (pagos en línea) y **Resend** (correos).
+
+En tu computadora, solo si vas a usar la opción A del paso 1.2: Node 20+ (`node -v`).
+
+---
+
+## 1. Supabase
+
+### 1.1 Crear el proyecto
+
+1. En [supabase.com](https://supabase.com) → **New project**.
+2. Nombre: `dark-laundry-os`. Región: la más cercana a tus clientes (para México, `East US (North Virginia)`).
+3. Guarda la **contraseña de la base de datos** en un gestor de contraseñas.
+4. Cuando termine de crearse, ve a **Project Settings → API** y copia:
+   - **Project URL**: `https://xxxx.supabase.co`
+   - **anon public** key
+   - **service_role** key (es secreta: nunca va al navegador ni a un archivo con prefijo `VITE_`)
+   - El **Reference ID** del proyecto (en Project Settings → General)
+
+### 1.2 Crear las tablas (migraciones)
+
+Elige **una** opción.
+
+**Opción A: con la CLI (recomendada, evita errores de copiado)**
+
+```bash
+git clone https://github.com/TTCMX/darker-laundry.git
+cd darker-laundry
+npx supabase login
+npx supabase link --project-ref TU_REFERENCE_ID     # pide la contraseña de la base
+npx supabase db push                                 # aplica supabase/migrations/*
+```
+
+**Opción B: desde el navegador**
+
+En Supabase → **SQL Editor** → **New query**, pega y ejecuta **en orden** cada archivo de `supabase/migrations/`, del `…0001_foundation.sql` al `…0009_storage_realtime.sql`. Cada uno debe terminar en "Success".
+
+**Verifica:** en **Table Editor** deben aparecer `tenants`, `orders`, `customers`, `payments`, etc. En **Storage** debe existir el bucket privado `evidence`.
+
+### 1.3 Autenticación
+
+En **Authentication → URL Configuration**:
+
+- **Site URL**: la URL de Vercel (paso 2). Si aún no la tienes, pon `http://localhost:5173` y cámbiala al terminar.
+- **Redirect URLs**: agrega `https://TU-APP.vercel.app/**` (y tu dominio propio si tienes, p. ej. `https://app.tulavanderia.com/**`).
+
+En **Authentication → Providers → Email**: deja **Email** activado. "Confirm email" puede quedarse activado (recomendado).
+
+**Correos de login en producción:** el correo integrado de Supabase tiene un límite bajo por hora. Antes de invitar a todo tu equipo, configura SMTP propio en **Authentication → Emails → SMTP Settings**. Con Resend: host `smtp.resend.com`, puerto `465`, usuario `resend`, contraseña = tu API key de Resend.
+
+---
+
+## 2. Vercel
+
+1. En [vercel.com](https://vercel.com) → **Add New… → Project** → importa `TTCMX/darker-laundry`.
+2. Framework: **Vite** (lo detecta solo por `vercel.json`). No cambies los comandos de build.
+3. **Environment Variables**: agrega estas antes del primer deploy.
+
+| Variable | Valor | Obligatoria |
+|---|---|---|
+| `VITE_SUPABASE_URL` | Project URL de Supabase | Sí |
+| `VITE_SUPABASE_ANON_KEY` | anon public key | Sí |
+| `SUPABASE_URL` | Project URL de Supabase (la misma) | Sí |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role key | Sí |
+| `APP_URL` | `https://TU-APP.vercel.app` (o tu dominio) | Sí |
+| `CRON_SECRET` | una cadena larga aleatoria (`openssl rand -hex 32`) | Sí |
+| `RESEND_API_KEY` | API key de Resend | No |
+| `EMAIL_FROM` | `Tu Lavandería <avisos@tudominio.com>` | Si usas Resend |
+
+4. **Deploy**.
+5. Comprueba que el servidor quedó bien configurado abriendo `https://TU-APP.vercel.app/api/health`. Debe responder `"supabase": true` y `"app_url": true`.
+6. Regresa a Supabase (paso 1.3) y pon la URL definitiva en **Site URL** y **Redirect URLs**.
+
+> **Rama:** Vercel publica en producción la rama por defecto (`main`). Mientras el trabajo siga en `claude/inspiring-faraday-bhnqts`, haz merge a `main` o elige esa rama en Vercel → Settings → Git → Production Branch.
+
+El cron diario (`/api/cron/daily`) queda registrado solo con `vercel.json`: envía los correos que hayan quedado en cola y vence los links de pago viejos. Los correos normales salen al momento, sin esperar al cron.
+
+---
+
+## 3. Primer uso (10 minutos)
+
+1. Abre la app → **Crea una cuenta** → confirma tu correo → **Configura tu lavandería** (nombre, país, moneda, zona horaria). Quedas como **Dueño**.
+2. **Ajustes → Operación**: revisa el flujo de producción (viene Lavado → Secado → Doblado → Control de calidad → Empaque). Agrega, quita o reordena fases.
+3. **Catálogo**: "Cargar catálogo de ejemplo" y ajusta los precios, o crea tus servicios. Agrega **Precio por volumen**, **Descuentos** y **Zonas de entrega** si aplican.
+4. **Ajustes → Entregas**: horarios de recolección y tarifa general de envío.
+5. **Ajustes → Precios e impuestos**: IVA incluido, IVA sumado o sin impuestos.
+6. **Equipo → Invitar**: genera un enlace por persona con su rol (Gerente, Mostrador, Producción, Courier) y compártelo por WhatsApp. El courier entra directo a su vista móvil.
+7. Crea una orden de prueba y recórrela: recolección → producción → entrega → cobro → enlace de seguimiento.
+
+---
+
+## 4. Pagos en línea con MercadoPago (opcional)
+
+1. En MercadoPago → **Tus integraciones** → crea una aplicación → **Credenciales de producción** → copia el **Access token** (`APP_USR-…`). Para probar, usa las credenciales de prueba (`TEST-…`).
+2. En la app: **Ajustes → Pagos → MercadoPago**: pega el token y activa "Aceptar pagos en línea". La app valida el token contra MercadoPago al guardar.
+3. Copia la **URL de notificaciones** que muestra la app y regístrala en MercadoPago → tu aplicación → **Webhooks** → evento **Pagos**.
+4. MercadoPago muestra una **clave secreta** para el webhook: pégala en la app. Con ella se verifica la firma de cada notificación.
+
+Cómo funciona:
+
+- El monto del link siempre es el saldo real de la orden, calculado en el servidor.
+- Cada notificación se confirma consultando el pago directamente en MercadoPago.
+- Un webhook repetido no duplica dinero.
+- Un pago parcial queda como pago parcial.
+
+Los reembolsos se hacen en MercadoPago y se registran en la orden con **Pagos → Reembolsar**.
+
+---
+
+## 5. Correos con Resend (opcional)
+
+1. En [resend.com](https://resend.com) verifica tu dominio (registros DNS).
+2. Crea una API key y ponla en Vercel como `RESEND_API_KEY`, con `EMAIL_FROM="Tu Lavandería <avisos@tudominio.com>"`. Haz redeploy.
+3. Por defecto las plantillas de **correo** son automáticas y las de **WhatsApp** son manuales: quedan listas en la orden para enviarse con un toque. Se cambian en **Ajustes → Notificaciones**.
+
+Cada lavandería puede usar su propio remitente de Resend desde **Ajustes → Notificaciones → Remitente de correo**.
+
+---
+
+## 6. Desarrollo local
+
+Con Docker instalado:
+
+```bash
+npm install
+npx supabase start          # levanta Postgres, Auth, Storage y Realtime locales
+npx supabase db reset       # aplica todas las migraciones
+cp .env.example .env.local  # llena con los valores que imprimió `supabase start` (API URL, anon key, service_role key)
+#   APP_URL=http://localhost:5173
+npm run dev                 # http://localhost:5173 (UI + /api en el mismo servidor)
+```
+
+Verificaciones:
+
+```bash
+npm run typecheck   # TypeScript
+npm test            # motor de precios, dominio, paridad con la base, iconos
+npm run test:db     # migraciones + RLS + flujo operativo completo (Postgres local o $DATABASE_URL)
+npm run check       # las tres
+```
+
+Si usas un icono nuevo de Material Symbols: `pip install fonttools brotli && npm run icons`.
+
+---
+
+## 7. Problemas comunes
+
+| Síntoma | Causa probable |
+|---|---|
+| Pantalla de login con aviso "Falta configurar VITE_SUPABASE_URL…" | Faltan las variables `VITE_*` en Vercel, o se agregaron después del build: haz redeploy. |
+| `/api/health` responde `"supabase": false` | Falta `SUPABASE_SERVICE_ROLE_KEY` o `SUPABASE_URL` en Vercel. |
+| "Tu sesión expiró" al guardar una orden | La service_role key no corresponde al mismo proyecto que la anon key. |
+| El enlace del correo de confirmación lleva a localhost | Actualiza **Site URL** y **Redirect URLs** en Supabase. |
+| No llegan correos de confirmación | Límite del correo integrado de Supabase: configura SMTP (paso 1.3). |
+| El botón "Pagar ahora" no aparece en el seguimiento | MercadoPago no está activado en Ajustes → Pagos. |
+| Los pagos en línea no se marcan | Falta registrar el webhook en MercadoPago, o la clave secreta del webhook no coincide. |
