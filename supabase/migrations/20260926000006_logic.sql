@@ -96,6 +96,13 @@ begin
     'tracking_token', o.public_token
   ) || coalesce(p_extra, '{}'::jsonb);
 
+  -- A new status message supersedes older ones nobody sent yet: a customer
+  -- whose order was delivered should not later get "your order is ready".
+  if p_event <> 'payment_reminder' then
+    update public.notifications set status = 'cancelled'
+    where order_id = o.id and status = 'pending' and event <> 'payment_reminder' and event <> p_event;
+  end if;
+
   for t in
     select * from public.notification_templates
     where tenant_id = o.tenant_id and event = p_event and enabled
