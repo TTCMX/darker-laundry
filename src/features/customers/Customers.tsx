@@ -13,6 +13,7 @@ import { rpc, useAction, useMemberNames } from "../../lib/queries";
 import { Button, Card, Chip, Dialog, Empty, Icon, IconButton, Loading, Stat, TextField, initials } from "../../ui/components";
 import { CustomerStatusBadge, OrderStatusBadge, PaymentBadge } from "../shared";
 import { AddressDialog, CustomerDialog, formatAddress, mapsUrl } from "./CustomerDialogs";
+import { ImportCustomersDialog } from "./import/ImportCustomers";
 
 export function CustomersList() {
   const { tenantId, tenant, can } = useTenant();
@@ -20,6 +21,7 @@ export function CustomersList() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<CustomerStatus | "all" | "balance">("all");
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const q = useQuery({
     queryKey: ["customers", tenantId, search, status],
@@ -44,7 +46,16 @@ export function CustomersList() {
   });
 
   return (
-    <Page title="Clientes">
+    <Page
+      title="Clientes"
+      actions={
+        can("customers.edit") && (
+          <Button variant="outlined" icon="upload_file" onClick={() => setImporting(true)}>
+            Importar
+          </Button>
+        )
+      }
+    >
       <div className="col gap-16">
         <div className="search">
           <Icon name="search" />
@@ -67,7 +78,13 @@ export function CustomersList() {
           {q.isLoading ? (
             <Loading />
           ) : !q.data?.length ? (
-            <Empty icon="group" title="Sin clientes" />
+            <Empty icon="group" title="Sin clientes">
+              {can("customers.edit") && !search && status === "all" && (
+                <Button variant="tonal" icon="upload_file" onClick={() => setImporting(true)}>
+                  Importar clientes de otro sistema
+                </Button>
+              )}
+            </Empty>
           ) : (
             <div className="list">
               {q.data.map((c) => (
@@ -97,6 +114,7 @@ export function CustomersList() {
           <Icon name="person_add" /> Nuevo cliente
         </button>
       )}
+      <ImportCustomersDialog open={importing} onClose={() => setImporting(false)} />
       <CustomerDialog
         open={creating}
         onClose={() => setCreating(false)}

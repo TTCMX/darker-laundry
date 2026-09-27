@@ -157,6 +157,18 @@ Cada periodo se compara con el anterior de la misma duración, el periodo va en 
 
 Requiere la migración `20260928000001_analytics.sql`.
 
+## 5d. Importar clientes de otro sistema
+
+**Clientes → Importar** (permiso para editar clientes). Requiere la migración `20260928000002_customer_import.sql`.
+
+1. Exporta tus clientes del sistema anterior como Excel (.xlsx) o CSV, con los títulos de las columnas en la primera fila. Si no sabes qué formato usar, descarga la plantilla desde la misma ventana.
+2. La app reconoce las columnas (Nombre, Apellido, Teléfono/Celular, Correo, Dirección, Colonia, CP, Ciudad, Referencias, Notas, Etiquetas, Puntos, Fecha de alta). Puedes cambiar cualquiera o marcarla como "No importar". Si nombre y apellido vienen separados, asigna las dos a Nombre.
+3. **Revisar** muestra fila por fila qué pasará, sin guardar nada: nuevos, repetidos (mismo teléfono o correo, aunque esté escrito distinto) y errores (sin nombre, teléfono o correo inválido). Puedes descargar las filas a revisar, corregirlas y volver a importar el archivo: lo ya importado se detecta como repetido.
+4. Si el cliente ya existe puedes dejarlo como está o completar sus datos vacíos (nunca se reemplaza lo capturado).
+5. Los puntos de lealtad se cargan como saldo inicial solo si quien importa puede ajustar puntos y el cliente no tenía puntos.
+
+Se aceptan CSV separados por coma, punto y coma o tabulador, en UTF-8 o en la codificación de Excel en Windows. Los .xls antiguos hay que guardarlos antes como .xlsx.
+
 ## 6. Desarrollo local
 
 Con Docker instalado:
