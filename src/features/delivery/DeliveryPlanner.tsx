@@ -11,6 +11,7 @@ import { Badge, Banner, Button, Card, Checkbox, Dialog, Empty, Icon, IconButton,
 import { formatAddress, mapsUrl } from "../customers/CustomerDialogs";
 import { DELIVERY_TYPE_LABEL, DeliveryStatusBadge, OrderStatusBadge } from "../shared";
 import type { OrderStatus } from "../../domain/orders";
+import { EditStopDialog } from "../orders/OrderDialogs";
 
 type Stop = Delivery & { orders: { id: string; number: number; status: OrderStatus; balance_cents: number; customers: { name: string; phone: string | null } } };
 
@@ -20,6 +21,8 @@ export function DeliveryPlanner() {
   const team = useTeam();
   const [day, setDay] = useState(todayISO());
   const [editing, setEditing] = useState<Route | "new" | null>(null);
+  const [editingStop, setEditingStop] = useState<Stop | null>(null);
+  const canEdit = can("delivery.manage", "orders.edit");
 
   const q = useQuery({
     queryKey: ["deliveries", tenantId, day],
@@ -91,7 +94,7 @@ export function DeliveryPlanner() {
               }
               variant="flush"
             >
-              {unrouted.length === 0 ? <Empty icon="task_alt" title="Todo asignado a rutas" /> : <StopList stops={unrouted} name={name} />}
+              {unrouted.length === 0 ? <Empty icon="task_alt" title="Todo asignado a rutas" /> : <StopList stops={unrouted} name={name} onEdit={canEdit ? setEditingStop : undefined} />}
             </Card>
 
             <div className="col gap-16">
@@ -124,7 +127,7 @@ export function DeliveryPlanner() {
                     }
                     variant="flush"
                   >
-                    <StopList stops={rs} name={name} numbered />
+                    <StopList stops={rs} name={name} numbered onEdit={canEdit ? setEditingStop : undefined} />
                   </Card>
                 );
               })}
@@ -132,6 +135,7 @@ export function DeliveryPlanner() {
           </div>
         </div>
       )}
+      {editingStop && <EditStopDialog stop={editingStop} onClose={() => setEditingStop(null)} />}
       {editing && (
         <RouteDialog
           day={day}
@@ -145,7 +149,7 @@ export function DeliveryPlanner() {
   );
 }
 
-function StopList({ stops, name, numbered }: { stops: Stop[]; name: (id: string | null) => string; numbered?: boolean }) {
+function StopList({ stops, name, numbered, onEdit }: { stops: Stop[]; name: (id: string | null) => string; numbered?: boolean; onEdit?: (s: Stop) => void }) {
   return (
     <div className="list">
       {stops.map((s, i) => (
@@ -167,6 +171,9 @@ function StopList({ stops, name, numbered }: { stops: Stop[]; name: (id: string 
           </div>
           <div className="col" style={{ alignItems: "flex-end" }}>
             <DeliveryStatusBadge status={s.status} />
+            {onEdit && !["completed", "failed", "cancelled"].includes(s.status) && (
+              <IconButton icon="edit" label="Editar parada" onClick={() => onEdit(s)} />
+            )}
             {s.type === "delivery" && s.orders.status !== "ready" && s.orders.status !== "out_for_delivery" && s.orders.status !== "delivered" && (
               <OrderStatusBadge status={s.orders.status} />
             )}

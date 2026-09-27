@@ -138,6 +138,10 @@ export function OrderEditor() {
   const existing = useQuery({
     queryKey: ["order-edit", id],
     enabled: !!id,
+    // Always load the current order: a cached copy from an earlier visit
+    // would prefill the form with stale items and overwrite them on save.
+    gcTime: 0,
+    staleTime: 0,
     queryFn: async () => {
       const [o, items, discounts] = await Promise.all([
         supabase.from("orders").select("*, customers(*)").eq("id", id!).single(),
@@ -179,7 +183,7 @@ export function OrderEditor() {
   // Prefill from an existing order, or from ?customer= for new ones.
   useEffect(() => {
     if (loaded) return;
-    if (id && existing.data) {
+    if (id && existing.data && !existing.isFetching) {
       const { order, items, discount_ids } = existing.data;
       setCustomer(order.customers);
       setFulfillment(order.fulfillment);
@@ -215,7 +219,7 @@ export function OrderEditor() {
       }
       setLoaded(true);
     }
-  }, [id, existing.data, loaded, params]);
+  }, [id, existing.data, existing.isFetching, loaded, params]);
 
   const addresses = useQuery({
     queryKey: ["addresses", customer?.id],
@@ -340,6 +344,7 @@ export function OrderEditor() {
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["deliveries"] });
       qc.invalidateQueries({ queryKey: ["order", r.order.id] });
+      qc.removeQueries({ queryKey: ["order-edit", r.order.id] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       const rejected = r.pricing.rejected_discounts.length;
       if (pickupError) toast.show(`Orden #${r.order.number} creada, pero no se pudo agendar la recolección: ${pickupError}`, { error: true });
@@ -358,7 +363,7 @@ export function OrderEditor() {
     }
   };
 
-  if ((id && existing.isLoading) || catalog.isLoading) return <Page title="Orden" back="/orders"><Loading /></Page>;
+  if ((id && !loaded) || catalog.isLoading) return <Page title="Orden" back="/orders"><Loading /></Page>;
 
   return (
     <Page title={id ? `Editar orden #${existing.data?.order.number ?? ""}` : "Nueva orden"} back={id ? `/orders/${id}` : "/orders"}>
@@ -615,6 +620,11 @@ export function OrderEditor() {
               </div>
             </Card>
 
+            {existing.data && ["delivered", "out_for_delivery", "ready"].includes(existing.data.order.status) && (
+              <Banner tone="warning">
+                Esta orden ya {existing.data.order.status === "delivered" ? "fue entregada" : "está lista"}: al guardar se recalculan el total y el saldo.
+              </Banner>
+            )}
             {serverError && <Banner tone="error">{serverError}</Banner>}
             <div className="row end sticky-bottom">
               <Button variant="text" onClick={() => navigate(-1)}>
