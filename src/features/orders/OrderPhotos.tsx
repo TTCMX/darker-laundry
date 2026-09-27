@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "../../domain/orders";
 import { errorMessage } from "../../lib/errors";
 import { dateTime } from "../../lib/format";
@@ -42,15 +42,35 @@ export function useOrderPhotos(orderId: string) {
 }
 
 /**
- * Camera / gallery picker that attaches photos to an order in one tap. Used on
- * the order page, the production board and the courier app.
+ * Two hidden file inputs: one opens the camera directly (`capture`), the
+ * other the gallery. On desktop both open the file picker.
+ */
+function usePickers(onFiles: (files: File[]) => void) {
+  const camera = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const handle = (e: ChangeEvent<HTMLInputElement>) => {
+    onFiles([...(e.target.files ?? [])]);
+    e.target.value = "";
+  };
+  const inputs = (
+    <>
+      <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={handle} />
+      <input ref={gallery} type="file" accept="image/*" multiple hidden onChange={handle} />
+    </>
+  );
+  return { inputs, openCamera: () => camera.current?.click(), openGallery: () => gallery.current?.click() };
+}
+
+/**
+ * Takes a photo (or picks from the gallery) and attaches it to the order in
+ * one step. Used on the order page, the production board and the courier app.
  */
 export function AddPhotoButton({
   orderId,
   stepId,
   deliveryId,
   compact,
-  label = "Agregar fotos",
+  label = "Tomar foto",
   onAdded,
 }: {
   orderId: string;
@@ -63,7 +83,6 @@ export function AddPhotoButton({
   const { tenantId } = useTenant();
   const qc = useQueryClient();
   const toast = useToast();
-  const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const onFiles = async (files: File[]) => {
     if (!files.length) return;
@@ -79,37 +98,57 @@ export function AddPhotoButton({
       toast.show(`No se pudo subir: ${errorMessage(err)}`, { error: true });
     } finally {
       setBusy(false);
-      if (input.current) input.current.value = "";
     }
   };
+  const { inputs, openCamera, openGallery } = usePickers(onFiles);
+  if (compact) {
+    return (
+      <>
+        {inputs}
+        <button type="button" className="icon-btn" style={{ width: 32, height: 32 }} title="Tomar foto" aria-label="Tomar foto" disabled={busy} onClick={openCamera}>
+          {busy ? <span className="spinner sm" /> : <Icon name="photo_camera" size="sm" />}
+        </button>
+        <button type="button" className="icon-btn" style={{ width: 32, height: 32 }} title="Elegir de la galería" aria-label="Elegir de la galería" disabled={busy} onClick={openGallery}>
+          <Icon name="photo_library" size="sm" />
+        </button>
+      </>
+    );
+  }
   return (
     <>
-      <input
-        ref={input}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(e) => onFiles([...(e.target.files ?? [])])}
-      />
-      {compact ? (
-        <button
-          type="button"
-          className="icon-btn"
-          style={{ width: 32, height: 32 }}
-          title="Agregar foto"
-          aria-label="Agregar foto"
-          disabled={busy}
-          onClick={() => input.current?.click()}
-        >
-          {busy ? <span className="spinner sm" /> : <Icon name="add_a_photo" size="sm" />}
-        </button>
-      ) : (
-        <Button variant="tonal" icon="add_a_photo" loading={busy} onClick={() => input.current?.click()}>
-          {label}
-        </Button>
-      )}
+      {inputs}
+      <Button variant="tonal" icon="photo_camera" loading={busy} onClick={openCamera}>
+        {label}
+      </Button>
+      <IconButton icon="photo_library" label="Elegir de la galería" disabled={busy} onClick={openGallery} />
     </>
+  );
+}
+
+/** Photo field for forms (incidents, delivery proof): camera or gallery, with a count. */
+export function PhotoPicker({ files, onChange, label = "Fotos (opcional)" }: { files: File[]; onChange: (files: File[]) => void; label?: string }) {
+  const { inputs, openCamera, openGallery } = usePickers((f) => onChange([...files, ...f]));
+  return (
+    <div className="field">
+      <label>{label}</label>
+      {inputs}
+      <div className="row wrap">
+        <Button variant="tonal" icon="photo_camera" onClick={openCamera}>
+          Tomar foto
+        </Button>
+        <Button variant="text" icon="photo_library" onClick={openGallery}>
+          Galería
+        </Button>
+        {files.length > 0 && (
+          <>
+            <span className="body-m">
+              {files.length} {files.length === 1 ? "foto" : "fotos"}
+            </span>
+            <IconButton icon="close" label="Quitar fotos" onClick={() => onChange([])} />
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

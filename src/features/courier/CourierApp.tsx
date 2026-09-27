@@ -12,7 +12,7 @@ import type { Delivery, Route } from "../../lib/types";
 import { Badge, Banner, Button, Dialog, Empty, Icon, Loading, TextArea, useToast } from "../../ui/components";
 import { formatAddress, mapsUrl } from "../customers/CustomerDialogs";
 import { IssueDialog, PaymentDialog } from "../orders/OrderDialogs";
-import { AddPhotoButton } from "../orders/OrderPhotos";
+import { AddPhotoButton, PhotoPicker } from "../orders/OrderPhotos";
 import { DELIVERY_TYPE_LABEL, DeliveryStatusBadge } from "../shared";
 
 type CourierStop = Delivery & {
@@ -197,7 +197,7 @@ export function CourierApp() {
                 </Button>
               </div>
               <div className="row wrap">
-                <AddPhotoButton orderId={s.orders.id} deliveryId={s.id} label="Foto" />
+                <AddPhotoButton orderId={s.orders.id} deliveryId={s.id} />
                 <Button variant="text" icon="report" onClick={() => setReporting(s)}>
                   Reportar problema
                 </Button>
@@ -301,10 +301,7 @@ function FinishDialog({
           onChange={(e) => setNote(e.target.value)}
           autoFocus
         />
-        <div className="field">
-          <label>Foto de evidencia</label>
-          <input type="file" accept="image/*" capture="environment" multiple onChange={(e) => setFiles([...(e.target.files ?? [])])} />
-        </div>
+        <PhotoPicker files={files} onChange={setFiles} label="Foto de evidencia" />
       </div>
     </Dialog>
   );

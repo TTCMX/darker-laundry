@@ -8,6 +8,7 @@ import { supabase } from "../../lib/supabase";
 import type { Address, Order, Payment, ProductionStep, QualityIssue } from "../../lib/types";
 import { Banner, Button, Dialog, Segmented, Select, TextArea, TextField } from "../../ui/components";
 import { formatAddress } from "../customers/CustomerDialogs";
+import { PhotoPicker } from "./OrderPhotos";
 import { ISSUE_STATUS_LABEL, ISSUE_TYPE_LABEL, SEVERITY_LABEL } from "../shared";
 
 export function PaymentDialog({
@@ -284,10 +285,7 @@ export function IssueDialog({
           />
         </div>
         <TextArea label="Descripción" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ej. Camisa blanca con mancha después del lavado" required />
-        <div className="field">
-          <label>Fotos (opcional)</label>
-          <input type="file" accept="image/*" capture="environment" multiple onChange={(e) => setFiles([...(e.target.files ?? [])])} />
-        </div>
+        <PhotoPicker files={files} onChange={setFiles} />
         <p className="body-s muted" style={{ margin: 0 }}>
           Las incidencias sirven para dar seguimiento; no generan penalizaciones automáticas.
         </p>

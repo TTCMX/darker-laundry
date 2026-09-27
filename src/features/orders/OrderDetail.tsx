@@ -360,7 +360,7 @@ export function OrderDetail() {
                   Cobrar {money(order.balance_cents)}
                 </Button>
               )}
-              <AddPhotoButton orderId={order.id} label="Foto" onAdded={() => setTab("photos")} />
+              <AddPhotoButton orderId={order.id} onAdded={() => setTab("photos")} />
             </div>
           }
         </Card>
