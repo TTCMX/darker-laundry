@@ -29,7 +29,9 @@ describe("database ↔ domain parity", () => {
   });
 
   it("order transitions", () => {
-    const pairs = [...block("insert into app.order_transitions").matchAll(/\('([a-z_]+)', '([a-z_]+)'\)/g)].map(
+    // Every migration that adds transitions.
+    const inserts = sql.split("insert into app.order_transitions").slice(1).map((b) => b.slice(0, b.indexOf(";"))).join("\n");
+    const pairs = [...inserts.matchAll(/\('([a-z_]+)', '([a-z_]+)'\)/g)].map(
       (m) => `${m[1]}>${m[2]}`,
     );
     const domain = ORDER_STATUSES.flatMap((from) => ORDER_TRANSITIONS[from].map((to) => `${from}>${to}`));
