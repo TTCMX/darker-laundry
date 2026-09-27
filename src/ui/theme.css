@@ -903,3 +903,6 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .grid > .stat .value { font-size: 22px; line-height: 30px; overflow-wrap: anywhere; }
   .grid > .stat .label { align-items: flex-start; flex-direction: column; gap: 8px; }
 }
+
+/* Set while a dialog is open (see lockScroll). */
+html.scroll-locked, html.scroll-locked body { overflow: hidden; }
