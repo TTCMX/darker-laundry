@@ -40,6 +40,7 @@ import {
   SEVERITY_LABEL,
   SEVERITY_TONE,
 } from "../shared";
+import { BrowserReceipt, PrintReceiptButton } from "./PrintReceipt";
 import { AddPhotoButton, OrderPhotoGallery, useOrderPhotos } from "./OrderPhotos";
 import { EditStopDialog, IssueDialog, PaymentDialog, ReasonDialog, RefundDialog, ResolveIssueDialog, ScheduleDialog } from "./OrderDialogs";
 
@@ -252,6 +253,7 @@ export function OrderDetail() {
         {can("orders.edit") && order.status !== "cancelled" && (
           <IconButton icon="edit" label="Editar orden" onClick={() => navigate(`/orders/${id}/edit`)} />
         )}
+        <PrintReceiptButton bundle={q.data} link={link} />
         <Menu trigger={(toggle) => <IconButton icon="more_vert" label="Más acciones" onClick={toggle} />}>
           {(close) => (
             <>
@@ -277,7 +279,7 @@ export function OrderDetail() {
                   window.print();
                 }}
               >
-                <Icon name="print" /> Imprimir recibo
+                <Icon name="print" /> Imprimir (navegador)
               </button>
               {can("quality.report") && (
                 <button
@@ -814,7 +816,7 @@ export function OrderDetail() {
           </div>
         </div>
       )}
-      <Receipt bundle={q.data} link={link} />
+      <BrowserReceipt bundle={q.data} link={link} />
     </Page>
   );
 }
@@ -928,53 +930,5 @@ function OrderHistory({ history, steps, name }: { history: AuditRow[]; steps: Pr
         </li>
       ))}
     </ul>
-  );
-}
-
-/** Printable receipt (only visible when printing). */
-function Receipt({ bundle, link }: { bundle: OrderBundle; link: string }) {
-  const { tenant } = useTenant();
-  const { order, items } = bundle;
-  return (
-    <div className="print-only" style={{ display: "none" }}>
-      <style>{`@media print { .print-only { display: block !important; position: fixed; inset: 0; background: #fff; padding: 24px; font-size: 12px; color: #000; } .content > *:not(.print-only) { display: none !important; } }`}</style>
-      <h2 style={{ fontSize: 18 }}>{tenant?.tenant_name}</h2>
-      <p>
-        Orden #{order.number} · {dateTime(order.created_at)}
-        <br />
-        Cliente: {order.customers.name}
-        <br />
-        Prometida: {dateTime(order.promised_at)}
-      </p>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          {items.map((i) => (
-            <tr key={i.id}>
-              <td>
-                {qty(i.quantity)} {unitLabel(i.unit)} {i.name}
-              </td>
-              <td style={{ textAlign: "right" }}>{money(i.gross_cents)}</td>
-            </tr>
-          ))}
-          {(order.pricing?.steps ?? [])
-            .filter((s) => s.key !== "list_subtotal")
-            .map((s) => (
-              <tr key={s.key}>
-                <td style={{ fontWeight: s.key === "total" ? 700 : 400 }}>{s.label}</td>
-                <td style={{ textAlign: "right", fontWeight: s.key === "total" ? 700 : 400 }}>{money(s.amount_cents)}</td>
-              </tr>
-            ))}
-          <tr>
-            <td>Pagado</td>
-            <td style={{ textAlign: "right" }}>{money(order.amount_paid_cents)}</td>
-          </tr>
-          <tr>
-            <td style={{ fontWeight: 700 }}>Saldo</td>
-            <td style={{ textAlign: "right", fontWeight: 700 }}>{money(order.balance_cents)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>Sigue tu orden: {link}</p>
-    </div>
   );
 }

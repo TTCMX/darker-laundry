@@ -10,13 +10,18 @@ import { api } from "../../lib/api";
 import { errorMessage } from "../../lib/errors";
 import { centsToInput, inputToCents, money } from "../../lib/format";
 import { describeLoyalty } from "../../domain/loyalty";
+import { printerPrefs } from "../../lib/printing/bluetooth";
+import type { PaperWidth } from "../../lib/printing/escpos";
+import { sampleReceipt } from "../../lib/printing/sample";
+import { ReceiptPreview } from "../orders/PrintReceipt";
+import { PrinterCard } from "./PrinterCard";
 import { useRoles, useWorkflows } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
 import type { TemplateRow, TenantRow, WorkflowStep } from "../../lib/types";
 import { Badge, Banner, Button, Card, Checkbox, Chip, Dialog, Icon, IconButton, Loading, Segmented, Select, Tabs, TextArea, TextField, useToast } from "../../ui/components";
 
-type TabKey = "business" | "operations" | "delivery" | "pricing" | "loyalty" | "payments" | "notifications";
+type TabKey = "business" | "operations" | "delivery" | "pricing" | "loyalty" | "receipts" | "payments" | "notifications";
 
 export function SettingsPage() {
   const { tenantId } = useTenant();
@@ -48,6 +53,7 @@ export function SettingsPage() {
             { value: "delivery", label: "Entregas" },
             { value: "pricing", label: "Precios e impuestos" },
             { value: "loyalty", label: "Lealtad" },
+            { value: "receipts", label: "Tickets" },
             { value: "payments", label: "Pagos" },
             { value: "notifications", label: "Notificaciones" },
           ]}
@@ -64,6 +70,8 @@ export function SettingsPage() {
           <PricingSettings row={q.data} />
         ) : tab === "loyalty" ? (
           <LoyaltySettingsPanel row={q.data} />
+        ) : tab === "receipts" ? (
+          <ReceiptSettingsPanel row={q.data} />
         ) : tab === "payments" ? (
           <PaymentsSettings row={q.data} />
         ) : (
@@ -693,6 +701,43 @@ function TemplateDialog({ template, onClose }: { template: TemplateRow; onClose:
         )}
       </div>
     </Dialog>
+  );
+}
+
+function ReceiptSettingsPanel({ row }: { row: TenantRow }) {
+  const { draft, update, save, saving } = useSettingsDraft(row);
+  const { can } = useTenant();
+  const [width, setWidth] = useState<PaperWidth>(printerPrefs().width);
+  const r = draft.receipts;
+  const set = <K extends keyof typeof r>(k: K, v: (typeof r)[K]) => update((s) => void (s.receipts[k] = v));
+  const sample = sampleReceipt(row, draft);
+  return (
+    <div className="grid cols-2" style={{ alignItems: "start" }}>
+      <div className="col gap-16">
+        <PrinterCard sample={sample} onWidth={setWidth} />
+        {can("settings.manage") && (
+          <Card title="Contenido del ticket">
+            <div className="col gap-16">
+              <TextArea label="Encabezado (opcional)" value={r.header} onChange={(e) => set("header", e.target.value)} rows={2} hint="Debajo del nombre y los datos del negocio (Negocio). Ej. horario o sitio web." />
+              <TextArea label="Pie" value={r.footer} onChange={(e) => set("footer", e.target.value)} rows={2} />
+              <Checkbox label="Link de seguimiento" checked={r.tracking_link} onChange={(v) => set("tracking_link", v)} />
+              <Checkbox label="Código QR de seguimiento (si tu impresora lo soporta)" checked={r.tracking_qr} onChange={(v) => set("tracking_qr", v)} />
+              <Checkbox label="Puntos de lealtad del cliente" checked={r.show_loyalty} onChange={(v) => set("show_loyalty", v)} />
+              <Checkbox label="Espacio en blanco arriba para anotar a mano" checked={r.annotation_space} onChange={(v) => set("annotation_space", v)} />
+              <p className="body-s muted" style={{ margin: 0 }}>
+                Los acentos se imprimen sin tilde para que funcionen en cualquier impresora térmica.
+              </p>
+              <SaveBar saving={saving} onSave={save} />
+            </div>
+          </Card>
+        )}
+      </div>
+      <Card title="Vista previa">
+        <div className="receipt-paper">
+          <ReceiptPreview doc={sample} width={width} />
+        </div>
+      </Card>
+    </div>
   );
 }
 

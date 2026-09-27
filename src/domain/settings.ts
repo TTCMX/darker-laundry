@@ -42,6 +42,21 @@ export interface TenantSettings {
   payments: { methods: PaymentMethod[]; allow_overpayment: boolean };
   notifications: { email_enabled: boolean; whatsapp_enabled: boolean; reply_to: string | null };
   loyalty: LoyaltySettings;
+  receipts: ReceiptSettings;
+}
+
+/** Printed tickets (thermal printer or browser print). */
+export interface ReceiptSettings {
+  /** Extra centered lines under the business name (slogan, schedule...). */
+  header: string;
+  footer: string;
+  /** Blank box at the top of the ticket to write on by hand. */
+  annotation_space: boolean;
+  /** QR with the tracking link (needs a printer with QR support). */
+  tracking_qr: boolean;
+  show_loyalty: boolean;
+  /** Print the tracking link as text. */
+  tracking_link: boolean;
 }
 
 export const DEFAULT_SETTINGS: TenantSettings = {
@@ -70,6 +85,14 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   payments: { methods: ["cash", "card", "transfer", "online"], allow_overpayment: false },
   notifications: { email_enabled: true, whatsapp_enabled: true, reply_to: null },
   loyalty: DEFAULT_LOYALTY,
+  receipts: {
+    header: "",
+    footer: "¡Gracias por tu preferencia!",
+    annotation_space: false,
+    tracking_qr: false,
+    show_loyalty: true,
+    tracking_link: true,
+  },
 };
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>

@@ -755,7 +755,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 @media (max-width: 480px) { .auth-card { border: none; padding: 24px 8px; background: transparent; } }
 
 @media print {
-  .rail, .bottom-nav, .topbar, .fab, .no-print { display: none !important; }
+  .rail, .bottom-nav, .topbar, .fab, .no-print, .snackbar-host { display: none !important; }
   .content { padding: 0; }
   body { background: #fff; }
 }
@@ -771,3 +771,21 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .photo-thumb { position: relative; width: 56px; height: 56px; padding: 0; border: none; border-radius: var(--radius-sm); overflow: hidden; background: var(--surface-container-high); cursor: pointer; display: grid; place-items: center; flex-shrink: 0; }
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-more { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.5); color: #fff; font-weight: 500; font-size: 13px; }
+
+/* Ticket preview (and browser print of the ticket). */
+.receipt {
+  margin: 0 auto;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: pre;
+  color: #000;
+  width: fit-content;
+}
+.receipt-paper {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px 8px;
+  box-shadow: inset 0 0 0 1px var(--outline-variant);
+  overflow-x: auto;
+}
