@@ -12,12 +12,13 @@ import { Banner, Button, Chip, Icon, Loading } from "../../ui/components";
 import { errorMessage } from "../../lib/errors";
 import { PriorityBadge, RiskBadge } from "../shared";
 import { IssueDialog } from "../orders/OrderDialogs";
-import { AddPhotoButton } from "../orders/OrderPhotos";
+import { AddPhotoButton, PhotoStrip, type OrderPhotoRow } from "../orders/OrderPhotos";
 
 type BoardOrder = Order & {
   customers: { name: string };
   order_items: { name: string; quantity: number; unit: string }[];
   order_production_steps: ProductionStep[];
+  order_photos: OrderPhotoRow[];
 };
 
 interface Column {
@@ -46,7 +47,7 @@ export function ProductionBoard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, customers(name), order_items(name, quantity, unit), order_production_steps!order_production_steps_tenant_id_order_id_fkey(*)")
+        .select("*, customers(name), order_items(name, quantity, unit), order_production_steps!order_production_steps_tenant_id_order_id_fkey(*), order_photos(id, path, caption, order_status, step_name, delivery_id, taken_by, created_at)")
         .eq("tenant_id", tenantId)
         .in("status", ["picked_up", "in_production", "ready"])
         .order("promised_at", { ascending: true, nullsFirst: false })
@@ -65,6 +66,9 @@ export function ProductionBoard() {
         qc.invalidateQueries({ queryKey: ["board", tenantId] }),
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "order_production_steps", filter: `tenant_id=eq.${tenantId}` }, () =>
+        qc.invalidateQueries({ queryKey: ["board", tenantId] }),
+      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_photos", filter: `tenant_id=eq.${tenantId}` }, () =>
         qc.invalidateQueries({ queryKey: ["board", tenantId] }),
       )
       .subscribe();
@@ -194,6 +198,7 @@ export function ProductionBoard() {
                     <div className="body-s muted">
                       <Icon name="schedule" size="sm" /> {dateTime(o.promised_at)}
                     </div>
+                    <PhotoStrip orderId={o.id} photos={o.order_photos} />
                     {total > 0 && (
                       <div className="progress" title={`${done}/${total}`}>
                         <span style={{ width: `${(done / total) * 100}%` }} />
