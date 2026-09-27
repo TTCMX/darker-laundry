@@ -153,6 +153,13 @@ export function OrderDetail() {
   const pendingMessages = notifications.filter((n) => n.status === "pending" && n.mode === "manual").length;
   const actor = { user_id: user?.id ?? "", can_work: can("production.work"), can_manage: can("production.manage") };
   const courierMembers = (team.data ?? []).filter((m) => m.active && m.role_home === "courier");
+  // Pickup orders can be booked before knowing what the customer sends.
+  const needsItems = items.length === 0 && open;
+  const captureItems = (
+    <Button icon="edit_note" onClick={() => navigate(`/orders/${id}/edit`)}>
+      Capturar servicios
+    </Button>
+  );
 
   // Primary next step for the order, depending on its status.
   const primary = (() => {
@@ -170,13 +177,19 @@ export function OrderDetail() {
             <Button variant="tonal" icon="inventory_2" onClick={() => setStatus.mutate({ status: "picked_up" })} loading={setStatus.isPending}>
               Recibir en tienda
             </Button>
-            <Button icon="local_laundry_service" onClick={() => startProduction.mutate(undefined)} loading={startProduction.isPending}>
-              Enviar a producción
-            </Button>
+            {needsItems ? (
+              captureItems
+            ) : (
+              <Button icon="local_laundry_service" onClick={() => startProduction.mutate(undefined)} loading={startProduction.isPending}>
+                Enviar a producción
+              </Button>
+            )}
           </>
         );
       case "picked_up":
-        return (
+        return needsItems ? (
+          captureItems
+        ) : (
           <Button icon="local_laundry_service" onClick={() => startProduction.mutate(undefined)} loading={startProduction.isPending}>
             Enviar a producción
           </Button>
@@ -322,6 +335,11 @@ export function OrderDetail() {
               )}
             </div>
           </div>
+          {needsItems && (
+            <Banner tone="warning" icon="edit_note">
+              Esta orden aún no tiene servicios. Captúralos al recibir la ropa para calcular el total y enviarla a producción.
+            </Banner>
+          )}
           {order.status === "cancelled" && (
             <Banner tone="error">
               Cancelada {dateTime(order.cancelled_at)}

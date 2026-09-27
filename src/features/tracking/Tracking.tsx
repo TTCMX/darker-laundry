@@ -194,6 +194,9 @@ export function TrackingPage() {
           </Card>
         )}
 
+        {o.items.length === 0 ? (
+          <Banner icon="inventory_2">Registraremos tus prendas y el total cuando recibamos tu ropa.</Banner>
+        ) : (
         <Card title="Detalle">
           <div className="col gap-8">
             {o.items.map((i, idx) => (
@@ -223,6 +226,7 @@ export function TrackingPage() {
             </div>
           </div>
         </Card>
+        )}
 
         {o.notes && <Banner icon="sticky_note_2">{o.notes}</Banner>}
 

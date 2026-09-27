@@ -8,8 +8,8 @@ import { normalizePhone } from "../../domain/phone";
 import { PricingError, quote, type PricingResult } from "../../domain/pricing";
 import { api } from "../../lib/api";
 import { errorMessage } from "../../lib/errors";
-import { centsToInput, inputToCents, isoToLocalInput, localInputToISO, money, unitLabel } from "../../lib/format";
-import { useCatalog } from "../../lib/queries";
+import { centsToInput, inputToCents, isoToLocalInput, localInputToISO, money, todayISO, unitLabel } from "../../lib/format";
+import { rpc, useCatalog } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
 import type { Address, Customer, Order, OrderItem, Product } from "../../lib/types";
@@ -171,6 +171,10 @@ export function OrderEditor() {
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // New delivery orders can book the pickup in the same step.
+  const [bookPickup, setBookPickup] = useState(true);
+  const [pickupDate, setPickupDate] = useState(() => todayISO());
+  const [pickupWindow, setPickupWindow] = useState(() => settings.delivery.windows[0]?.id ?? "");
 
   // Prefill from an existing order, or from ?customer= for new ones.
   useEffect(() => {
@@ -290,8 +294,10 @@ export function OrderEditor() {
 
   const save = async () => {
     if (!customer) return setServerError("Selecciona un cliente.");
-    if (!lines.length) return setServerError("Agrega al menos un servicio.");
+    if (!lines.length && fulfillment === "walk_in") return setServerError("Agrega al menos un servicio.");
     if (previewError) return setServerError(previewError);
+    const schedulePickup = !id && fulfillment === "delivery" && bookPickup;
+    if (schedulePickup && !pickupAddress) return setServerError("Agrega la dirección de recolección.");
     setSaving(true);
     setServerError(null);
     try {
@@ -313,11 +319,36 @@ export function OrderEditor() {
         discount_ids: discountIds,
         delivery_fee_override_cents: freeDelivery ? 0 : null,
       });
+      let pickupError: string | null = null;
+      if (schedulePickup) {
+        const w = settings.delivery.windows.find((x) => x.id === pickupWindow);
+        try {
+          await rpc("schedule_delivery", {
+            p_order: r.order.id,
+            p_type: "pickup",
+            p_date: pickupDate,
+            p_window_label: w ? `${w.label} ${w.start}–${w.end}` : null,
+            p_window_start: w?.start ?? null,
+            p_window_end: w?.end ?? null,
+            p_address_id: pickupAddress,
+          });
+        } catch (err) {
+          // The order exists; the pickup can be scheduled from its page.
+          pickupError = errorMessage(err);
+        }
+      }
       qc.invalidateQueries({ queryKey: ["orders"] });
+      qc.invalidateQueries({ queryKey: ["deliveries"] });
       qc.invalidateQueries({ queryKey: ["order", r.order.id] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       const rejected = r.pricing.rejected_discounts.length;
-      toast.show(id ? "Orden actualizada" : `Orden #${r.order.number} creada${rejected ? ` (${rejected} descuento no aplicó)` : ""}`);
+      if (pickupError) toast.show(`Orden #${r.order.number} creada, pero no se pudo agendar la recolección: ${pickupError}`, { error: true });
+      else
+        toast.show(
+          id
+            ? "Orden actualizada"
+            : `Orden #${r.order.number} creada${schedulePickup ? " y recolección agendada" : ""}${rejected ? ` (${rejected} descuento no aplicó)` : ""}`,
+        );
       api("/api/notifications/dispatch", { tenant_id: tenantId }).catch(() => {});
       navigate(`/orders/${r.order.id}`, { replace: true });
     } catch (err) {
@@ -389,6 +420,23 @@ export function OrderEditor() {
                       placeholder="Tarifa general"
                       options={(catalog.data?.zones ?? []).filter((z) => z.active).map((z) => ({ value: z.id, label: `${z.name} · ${money(z.fee_cents)}` }))}
                     />
+                    {!id && (
+                      <div className="card filled col gap-12">
+                        <Checkbox label="Agendar la recolección ahora" checked={bookPickup} onChange={setBookPickup} />
+                        {bookPickup && (
+                          <div className="grid cols-2">
+                            <TextField label="Día de recolección" type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} />
+                            <Select
+                              label="Horario"
+                              value={pickupWindow}
+                              onChange={(e) => setPickupWindow(e.target.value)}
+                              placeholder="Sin horario"
+                              options={settings.delivery.windows.map((w) => ({ value: w.id, label: `${w.label} ${w.start}–${w.end}` }))}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="grid cols-2">
@@ -454,7 +502,9 @@ export function OrderEditor() {
             <Card title={`Orden${lines.length ? ` · ${lines.length} ${lines.length === 1 ? "línea" : "líneas"}` : ""}`} variant="flush">
               {lines.length === 0 ? (
                 <Empty icon="shopping_basket" title="Sin servicios">
-                  Toca un servicio del catálogo para agregarlo.
+                  {fulfillment === "delivery"
+                    ? "Puedes crear la orden sin servicios: se capturan al recibir la ropa."
+                    : "Toca un servicio del catálogo para agregarlo."}
                 </Empty>
               ) : (
                 <div className="list">
@@ -570,8 +620,14 @@ export function OrderEditor() {
               <Button variant="text" onClick={() => navigate(-1)}>
                 Cancelar
               </Button>
-              <Button icon="check" size="lg" onClick={save} loading={saving} disabled={!customer || !lines.length}>
-                {id ? "Guardar cambios" : `Crear orden${preview ? ` · ${money(preview.total_cents)}` : ""}`}
+              <Button icon="check" size="lg" onClick={save} loading={saving} disabled={!customer || (!lines.length && fulfillment === "walk_in")}>
+                {id
+                  ? "Guardar cambios"
+                  : !lines.length
+                    ? bookPickup && fulfillment === "delivery"
+                      ? "Crear y agendar recolección"
+                      : "Crear orden sin servicios"
+                    : `Crear orden${preview ? ` · ${money(preview.total_cents)}` : ""}`}
               </Button>
             </div>
           </div>

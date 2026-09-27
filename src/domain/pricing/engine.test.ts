@@ -327,6 +327,16 @@ describe("delivery fee", () => {
   });
 });
 
+describe("orders without items", () => {
+  it("price to zero, with no delivery fee until items are captured", () => {
+    const r = quote(input({ items: [], delivery: { fee_cents: 5000, free_over_cents: null } }), ctx());
+    expect(r.total_cents).toBe(0);
+    expect(r.delivery_fee_cents).toBe(0);
+    expect(r.lines).toEqual([]);
+    expect(r.steps.map((s) => s.key)).toEqual(["list_subtotal", "total"]);
+  });
+});
+
 describe("tax", () => {
   const items = [
     { product_id: "shirt", quantity: 2 }, // 9000

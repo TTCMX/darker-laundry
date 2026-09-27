@@ -205,7 +205,12 @@ export function ProductionBoard() {
                       </div>
                     )}
                     <div className="actions">
-                      {o.status === "picked_up" && can("orders.edit", "production.manage") && (
+                      {o.status === "picked_up" && o.order_items.length === 0 && (
+                        <Link className="btn tonal sm" to={`/orders/${o.id}/edit`}>
+                          Capturar servicios
+                        </Link>
+                      )}
+                      {o.status === "picked_up" && o.order_items.length > 0 && can("orders.edit", "production.manage") && (
                         <Button size="sm" icon="play_arrow" onClick={() => act.mutate({ kind: "start", id: o.id })}>
                           Iniciar
                         </Button>
