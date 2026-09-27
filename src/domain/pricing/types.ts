@@ -98,7 +98,18 @@ export interface PricingInput {
   delivery: DeliveryFeeRule | null;
   /** Staff override of the delivery fee (permission checked by the caller). */
   delivery_fee_override_cents?: Cents | null;
+  /** Loyalty points the customer wants to use (balance checked by the caller). */
+  points_to_redeem?: number | null;
   now: Date;
+}
+
+/** Redemption side of the loyalty program (earning happens in the database). */
+export interface LoyaltyRedemption {
+  enabled: boolean;
+  /** Value of one point, in cents. */
+  point_value_cents: Cents;
+  /** Minimum points per redemption (0 = any). */
+  min_redeem_points: number;
 }
 
 export interface PricingContext {
@@ -107,6 +118,7 @@ export interface PricingContext {
   discounts: Discount[];
   tax: TaxSettings;
   settings: PricingSettings;
+  loyalty?: LoyaltyRedemption | null;
 }
 
 export interface LineResult {
@@ -173,6 +185,10 @@ export interface PricingResult {
   tax_cents: Cents;
   /** Informational: tax contained in the prices (inclusive mode). */
   tax_included_cents: Cents;
+  /** Points used and the amount they covered ("credits" stage). */
+  points_redeemed: number;
+  credit_cents: Cents;
+  credit_rejected: "disabled" | "min_points" | null;
   total_cents: Cents;
   steps: BreakdownStep[];
 }

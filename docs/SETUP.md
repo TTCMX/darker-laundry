@@ -132,6 +132,15 @@ Cada lavandería puede usar su propio remitente de Resend desde **Ajustes → No
 
 ---
 
+## 5b. Impresora de tickets Bluetooth (opcional)
+
+No requiere configuración en el servidor. Usa el mismo protocolo que la app interna (Bluetooth LE, servicio `0x18F0` / característica `0x2AF1`, ESC/POS) y también prueba los servicios de las impresoras térmicas más comunes.
+
+1. En cada celular o computadora: **Ajustes → Tickets → Conectar** y elige la impresora. Si no aparece, usa **Mostrar todos los dispositivos**. Elige el ancho del papel (58 u 80 mm) y pulsa **Imprimir prueba**.
+2. En cualquier orden, el ícono de impresora de la barra superior imprime la nota. Si la impresora no está conectada (por ejemplo, después de recargar la página), se abre el selector y luego imprime.
+3. Navegadores compatibles: Chrome o Edge en Android, Windows, macOS y ChromeOS. Safari en iPhone no permite Bluetooth; ahí puedes usar el navegador Bluefy o **⋮ → Imprimir (navegador)**, que imprime el mismo ticket en cualquier impresora instalada (USB, Wi‑Fi o PDF).
+4. En **Ajustes → Tickets** se configura el contenido: encabezado, pie, link o QR de seguimiento, puntos de lealtad y espacio para anotar a mano. Los datos del negocio (nombre, RFC, dirección y teléfono) salen de **Ajustes → Negocio**.
+
 ## 6. Desarrollo local
 
 Con Docker instalado:

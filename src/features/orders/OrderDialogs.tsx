@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "../../domain/payments";
 import { newIdempotencyKey } from "../../lib/api";
@@ -5,9 +6,10 @@ import { centsToInput, inputToCents, money, todayISO } from "../../lib/format";
 import { rpc, uploadEvidence, useAction, useTeam } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
-import type { Address, Order, Payment, ProductionStep, QualityIssue } from "../../lib/types";
+import type { Address, Delivery, Order, Payment, ProductionStep, QualityIssue } from "../../lib/types";
 import { Banner, Button, Dialog, Segmented, Select, TextArea, TextField } from "../../ui/components";
 import { formatAddress } from "../customers/CustomerDialogs";
+import { PhotoPicker } from "./OrderPhotos";
 import { ISSUE_STATUS_LABEL, ISSUE_TYPE_LABEL, SEVERITY_LABEL } from "../shared";
 
 export function PaymentDialog({
@@ -48,7 +50,7 @@ export function PaymentDialog({
         p_notes: notes || null,
         p_delivery: deliveryId ?? null,
       }),
-    { success: "Pago registrado", invalidate: [["order"], ["orders"], ["dashboard"], ["courier"], ["payments"]] },
+    { success: "Pago registrado", invalidate: [["order"], ["orders"], ["dashboard"], ["courier"], ["payments"], ["loyalty"], ["customer"]] },
   );
   const cents = inputToCents(amount) ?? 0;
 
@@ -284,10 +286,7 @@ export function IssueDialog({
           />
         </div>
         <TextArea label="Descripción" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ej. Camisa blanca con mancha después del lavado" required />
-        <div className="field">
-          <label>Fotos (opcional)</label>
-          <input type="file" accept="image/*" capture="environment" multiple onChange={(e) => setFiles([...(e.target.files ?? [])])} />
-        </div>
+        <PhotoPicker files={files} onChange={setFiles} />
         <p className="body-s muted" style={{ margin: 0 }}>
           Las incidencias sirven para dar seguimiento; no generan penalizaciones automáticas.
         </p>
@@ -387,5 +386,116 @@ export function ReasonDialog({
     >
       <TextArea label={label} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
     </Dialog>
+  );
+}
+
+/** Edit a scheduled pickup/delivery: day, window, address, courier, notes; or cancel it. */
+export function EditStopDialog({ stop, onClose }: { stop: Delivery; onClose: () => void }) {
+  const { settings, can } = useTenant();
+  const team = useTeam();
+  const couriers = (team.data ?? []).filter((m) => m.active && m.role_home === "courier");
+  const addresses = useQuery({
+    queryKey: ["order-addresses", stop.order_id],
+    queryFn: async () => {
+      const { data: o } = await supabase.from("orders").select("customer_id").eq("id", stop.order_id).single();
+      const { data } = await supabase.from("customer_addresses").select("*").eq("customer_id", o!.customer_id).order("is_default", { ascending: false });
+      return (data ?? []) as Address[];
+    },
+  });
+  const windows = settings.delivery.windows;
+  const [date, setDate] = useState(stop.scheduled_date);
+  const [windowId, setWindowId] = useState(
+    () => windows.find((w) => stop.window_start?.startsWith(w.start) && stop.window_end?.startsWith(w.end))?.id ?? "",
+  );
+  const [addressId, setAddressId] = useState(stop.address_id ?? "");
+  const [courier, setCourier] = useState(stop.courier_id ?? "");
+  const [notes, setNotes] = useState(stop.notes ?? "");
+  const [cancelling, setCancelling] = useState(false);
+  const w = windows.find((x) => x.id === windowId);
+  const invalidate = [["order"], ["orders"], ["deliveries"], ["courier"], ["dashboard"]];
+  const save = useAction(
+    () =>
+      rpc("update_delivery", {
+        p_delivery: stop.id,
+        p_date: date,
+        p_window_label: w ? `${w.label} ${w.start}–${w.end}` : null,
+        p_window_start: w?.start ?? null,
+        p_window_end: w?.end ?? null,
+        p_courier: courier || null,
+        p_clear_courier: !courier,
+        p_notes: notes,
+        p_address_id: addressId && addressId !== stop.address_id ? addressId : null,
+      }),
+    { success: "Cambios guardados", invalidate, dispatch: false },
+  );
+  const cancel = useAction(
+    (reason: string) => rpc("update_delivery_status", { p_delivery: stop.id, p_status: "cancelled", p_note: reason || null }),
+    { success: stop.type === "pickup" ? "Recolección cancelada" : "Entrega cancelada", invalidate, dispatch: false },
+  );
+  const label = stop.type === "pickup" ? "recolección" : "entrega";
+  return (
+    <>
+      <Dialog
+        open
+        title={`Editar ${label}`}
+        onClose={onClose}
+        actions={
+          <>
+            {can("delivery.manage", "orders.edit") && (
+              <Button variant="danger-text" style={{ marginRight: "auto" }} onClick={() => setCancelling(true)}>
+                Cancelar {label}
+              </Button>
+            )}
+            <Button variant="text" onClick={onClose}>
+              Cerrar
+            </Button>
+            <Button loading={save.isPending} onClick={() => save.mutate(undefined, { onSuccess: onClose })}>
+              Guardar
+            </Button>
+          </>
+        }
+      >
+        <div className="col gap-16">
+          <div className="grid cols-2">
+            <TextField label="Día" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Select
+              label="Horario"
+              value={windowId}
+              onChange={(e) => setWindowId(e.target.value)}
+              placeholder={stop.window_label && !windowId ? stop.window_label : "Sin horario"}
+              options={windows.map((x) => ({ value: x.id, label: `${x.label} ${x.start}–${x.end}` }))}
+            />
+          </div>
+          <Select
+            label="Dirección"
+            value={addressId}
+            onChange={(e) => setAddressId(e.target.value)}
+            options={(addresses.data ?? []).map((a) => ({ value: a.id, label: formatAddress(a) }))}
+          />
+          <Select
+            label="Courier"
+            value={courier}
+            onChange={(e) => setCourier(e.target.value)}
+            placeholder="Sin asignar"
+            options={couriers.map((c) => ({ value: c.user_id, label: c.display_name }))}
+          />
+          <TextArea label="Notas para el courier" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+          {stop.route_id && date !== stop.scheduled_date && (
+            <Banner tone="warning">Al cambiar el día, la parada sale de su ruta actual.</Banner>
+          )}
+        </div>
+      </Dialog>
+      <ReasonDialog
+        open={cancelling}
+        title={`Cancelar ${label}`}
+        label="Motivo (opcional)"
+        confirmLabel={`Cancelar ${label}`}
+        danger
+        required={false}
+        loading={cancel.isPending}
+        onClose={() => setCancelling(false)}
+        onConfirm={(reason) => cancel.mutate(reason, { onSuccess: onClose })}
+      />
+    </>
   );
 }

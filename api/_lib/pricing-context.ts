@@ -80,5 +80,6 @@ export async function loadPricingContext(
     ),
     tax: tenant.settings.tax,
     settings: tenant.settings.pricing,
+    loyalty: tenant.settings.loyalty,
   };
 }

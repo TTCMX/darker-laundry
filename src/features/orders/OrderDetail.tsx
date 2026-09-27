@@ -40,8 +40,9 @@ import {
   SEVERITY_LABEL,
   SEVERITY_TONE,
 } from "../shared";
+import { BrowserReceipt, PrintReceiptButton } from "./PrintReceipt";
 import { AddPhotoButton, OrderPhotoGallery, useOrderPhotos } from "./OrderPhotos";
-import { IssueDialog, PaymentDialog, ReasonDialog, RefundDialog, ResolveIssueDialog, ScheduleDialog } from "./OrderDialogs";
+import { EditStopDialog, IssueDialog, PaymentDialog, ReasonDialog, RefundDialog, ResolveIssueDialog, ScheduleDialog } from "./OrderDialogs";
 
 interface OrderBundle {
   order: Order & { customers: Customer };
@@ -107,6 +108,7 @@ export function OrderDetail() {
   const [resolving, setResolving] = useState<QualityIssue | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [editingStop, setEditingStop] = useState<Delivery | null>(null);
 
   const setStatus = useAction((args: { status: OrderStatus; note?: string }) => rpc("set_order_status", { p_order: id, p_status: args.status, p_note: args.note ?? null }), {
     success: "Estado actualizado",
@@ -154,7 +156,7 @@ export function OrderDetail() {
   const openIssues = issues.filter((i) => i.status === "open" || i.status === "in_progress").length;
   const pendingMessages = notifications.filter((n) => n.status === "pending" && n.mode === "manual").length;
   const actor = { user_id: user?.id ?? "", can_work: can("production.work"), can_manage: can("production.manage") };
-  const courierMembers = (team.data ?? []).filter((m) => m.active && m.role_home === "courier");
+  const canEditStops = can("delivery.manage", "orders.edit");
   // Pickup orders can be booked before knowing what the customer sends.
   const needsItems = items.length === 0 && open;
   const photoCount =
@@ -247,10 +249,15 @@ export function OrderDetail() {
       title={`Orden #${order.number}`}
       back="/orders"
       actions={
+        <>
+        {can("orders.edit") && order.status !== "cancelled" && (
+          <IconButton icon="edit" label="Editar orden" onClick={() => navigate(`/orders/${id}/edit`)} />
+        )}
+        <PrintReceiptButton bundle={q.data} link={link} />
         <Menu trigger={(toggle) => <IconButton icon="more_vert" label="Más acciones" onClick={toggle} />}>
           {(close) => (
             <>
-              {can("orders.edit") && open && (
+              {can("orders.edit") && order.status !== "cancelled" && (
                 <button onClick={() => navigate(`/orders/${id}/edit`)}>
                   <Icon name="edit" /> Editar servicios y precio
                 </button>
@@ -272,7 +279,7 @@ export function OrderDetail() {
                   window.print();
                 }}
               >
-                <Icon name="print" /> Imprimir recibo
+                <Icon name="print" /> Imprimir (navegador)
               </button>
               {can("quality.report") && (
                 <button
@@ -297,6 +304,7 @@ export function OrderDetail() {
             </>
           )}
         </Menu>
+        </>
       }
     >
       <div className="col gap-16">
@@ -360,7 +368,7 @@ export function OrderDetail() {
                   Cobrar {money(order.balance_cents)}
                 </Button>
               )}
-              <AddPhotoButton orderId={order.id} label="Foto" onAdded={() => setTab("photos")} />
+              <AddPhotoButton orderId={order.id} onAdded={() => setTab("photos")} />
             </div>
           }
         </Card>
@@ -455,7 +463,12 @@ export function OrderDetail() {
                       <span>
                         {DELIVERY_TYPE_LABEL[d!.type]} · {dateOnly(d!.scheduled_date)} {d!.window_label ?? ""}
                       </span>
-                      <DeliveryStatusBadge status={d!.status} />
+                      <div className="row gap-4">
+                        <DeliveryStatusBadge status={d!.status} />
+                        {canEditStops && !["completed", "failed", "cancelled"].includes(d!.status) && (
+                          <IconButton icon="edit" label="Editar" onClick={() => setEditingStop(d!)} />
+                        )}
+                      </div>
                     </div>
                   ))}
                 </Card>
@@ -570,17 +583,16 @@ export function OrderDetail() {
                           {d.proof_paths.length}
                         </Button>
                       )}
-                      {can("delivery.manage") && !["completed", "failed", "cancelled"].includes(d.status) && (
-                        <Select
-                          value={d.courier_id ?? ""}
-                          placeholder="Sin courier"
-                          onChange={(e) =>
-                            rpc("update_delivery", { p_delivery: d.id, p_courier: e.target.value || null, p_clear_courier: !e.target.value })
-                              .then(() => q.refetch())
-                              .catch((err) => toast.show(errorMessage(err), { error: true }))
-                          }
-                          options={courierMembers.map((c) => ({ value: c.user_id, label: c.display_name }))}
-                        />
+                      {canEditStops && !["completed", "failed", "cancelled"].includes(d.status) && (
+                        <Button variant="tonal" size="sm" icon="edit" onClick={() => setEditingStop(d)}>
+                          Editar
+                        </Button>
+                      )}
+                      {canEditStops && d.status === "failed" && open && !(d.type === "pickup" ? pickup : delivery) &&
+                        (d.type === "delivery" || ["created", "scheduled"].includes(order.status)) && (
+                        <Button variant="tonal" size="sm" icon="event_repeat" onClick={() => setScheduling(d.type)}>
+                          Reprogramar
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -782,6 +794,7 @@ export function OrderDetail() {
       <PaymentDialog open={paying} order={order} onClose={() => setPaying(false)} />
       <RefundDialog open={!!refunding} payment={refunding} onClose={() => setRefunding(null)} />
       {scheduling && <ScheduleDialog open type={scheduling} order={order} addresses={addresses} onClose={() => setScheduling(null)} />}
+      {editingStop && <EditStopDialog stop={editingStop} onClose={() => setEditingStop(null)} />}
       <IssueDialog open={reporting} order={order} steps={steps} onClose={() => setReporting(false)} />
       <ResolveIssueDialog open={!!resolving} issue={resolving} onClose={() => setResolving(null)} />
       <ReasonDialog
@@ -803,7 +816,7 @@ export function OrderDetail() {
           </div>
         </div>
       )}
-      <Receipt bundle={q.data} link={link} />
+      <BrowserReceipt bundle={q.data} link={link} />
     </Page>
   );
 }
@@ -917,53 +930,5 @@ function OrderHistory({ history, steps, name }: { history: AuditRow[]; steps: Pr
         </li>
       ))}
     </ul>
-  );
-}
-
-/** Printable receipt (only visible when printing). */
-function Receipt({ bundle, link }: { bundle: OrderBundle; link: string }) {
-  const { tenant } = useTenant();
-  const { order, items } = bundle;
-  return (
-    <div className="print-only" style={{ display: "none" }}>
-      <style>{`@media print { .print-only { display: block !important; position: fixed; inset: 0; background: #fff; padding: 24px; font-size: 12px; color: #000; } .content > *:not(.print-only) { display: none !important; } }`}</style>
-      <h2 style={{ fontSize: 18 }}>{tenant?.tenant_name}</h2>
-      <p>
-        Orden #{order.number} · {dateTime(order.created_at)}
-        <br />
-        Cliente: {order.customers.name}
-        <br />
-        Prometida: {dateTime(order.promised_at)}
-      </p>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          {items.map((i) => (
-            <tr key={i.id}>
-              <td>
-                {qty(i.quantity)} {unitLabel(i.unit)} {i.name}
-              </td>
-              <td style={{ textAlign: "right" }}>{money(i.gross_cents)}</td>
-            </tr>
-          ))}
-          {(order.pricing?.steps ?? [])
-            .filter((s) => s.key !== "list_subtotal")
-            .map((s) => (
-              <tr key={s.key}>
-                <td style={{ fontWeight: s.key === "total" ? 700 : 400 }}>{s.label}</td>
-                <td style={{ textAlign: "right", fontWeight: s.key === "total" ? 700 : 400 }}>{money(s.amount_cents)}</td>
-              </tr>
-            ))}
-          <tr>
-            <td>Pagado</td>
-            <td style={{ textAlign: "right" }}>{money(order.amount_paid_cents)}</td>
-          </tr>
-          <tr>
-            <td style={{ fontWeight: 700 }}>Saldo</td>
-            <td style={{ textAlign: "right", fontWeight: 700 }}>{money(order.balance_cents)}</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>Sigue tu orden: {link}</p>
-    </div>
   );
 }

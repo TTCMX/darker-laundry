@@ -43,6 +43,7 @@ export function useCatalog() {
         discounts: q.data.discounts.map((d) => ({ ...d, usage_count: 0 })),
         tax: settings.tax,
         settings: settings.pricing,
+        loyalty: settings.loyalty,
       }
     : null;
   return { ...q, pricingContext };

@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "../../domain/orders";
 import { errorMessage } from "../../lib/errors";
 import { dateTime } from "../../lib/format";
@@ -42,15 +42,35 @@ export function useOrderPhotos(orderId: string) {
 }
 
 /**
- * Camera / gallery picker that attaches photos to an order in one tap. Used on
- * the order page, the production board and the courier app.
+ * Two hidden file inputs: one opens the camera directly (`capture`), the
+ * other the gallery. On desktop both open the file picker.
+ */
+function usePickers(onFiles: (files: File[]) => void) {
+  const camera = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const handle = (e: ChangeEvent<HTMLInputElement>) => {
+    onFiles([...(e.target.files ?? [])]);
+    e.target.value = "";
+  };
+  const inputs = (
+    <>
+      <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={handle} />
+      <input ref={gallery} type="file" accept="image/*" multiple hidden onChange={handle} />
+    </>
+  );
+  return { inputs, openCamera: () => camera.current?.click(), openGallery: () => gallery.current?.click() };
+}
+
+/**
+ * Takes a photo (or picks from the gallery) and attaches it to the order in
+ * one step. Used on the order page, the production board and the courier app.
  */
 export function AddPhotoButton({
   orderId,
   stepId,
   deliveryId,
   compact,
-  label = "Agregar fotos",
+  label = "Tomar foto",
   onAdded,
 }: {
   orderId: string;
@@ -63,7 +83,6 @@ export function AddPhotoButton({
   const { tenantId } = useTenant();
   const qc = useQueryClient();
   const toast = useToast();
-  const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const onFiles = async (files: File[]) => {
     if (!files.length) return;
@@ -79,37 +98,57 @@ export function AddPhotoButton({
       toast.show(`No se pudo subir: ${errorMessage(err)}`, { error: true });
     } finally {
       setBusy(false);
-      if (input.current) input.current.value = "";
     }
   };
+  const { inputs, openCamera, openGallery } = usePickers(onFiles);
+  if (compact) {
+    return (
+      <>
+        {inputs}
+        <button type="button" className="icon-btn" style={{ width: 32, height: 32 }} title="Tomar foto" aria-label="Tomar foto" disabled={busy} onClick={openCamera}>
+          {busy ? <span className="spinner sm" /> : <Icon name="photo_camera" size="sm" />}
+        </button>
+        <button type="button" className="icon-btn" style={{ width: 32, height: 32 }} title="Elegir de la galería" aria-label="Elegir de la galería" disabled={busy} onClick={openGallery}>
+          <Icon name="photo_library" size="sm" />
+        </button>
+      </>
+    );
+  }
   return (
     <>
-      <input
-        ref={input}
-        type="file"
-        accept="image/*"
-        multiple
-        hidden
-        onChange={(e) => onFiles([...(e.target.files ?? [])])}
-      />
-      {compact ? (
-        <button
-          type="button"
-          className="icon-btn"
-          style={{ width: 32, height: 32 }}
-          title="Agregar foto"
-          aria-label="Agregar foto"
-          disabled={busy}
-          onClick={() => input.current?.click()}
-        >
-          {busy ? <span className="spinner sm" /> : <Icon name="add_a_photo" size="sm" />}
-        </button>
-      ) : (
-        <Button variant="tonal" icon="add_a_photo" loading={busy} onClick={() => input.current?.click()}>
-          {label}
-        </Button>
-      )}
+      {inputs}
+      <Button variant="tonal" icon="photo_camera" loading={busy} onClick={openCamera}>
+        {label}
+      </Button>
+      <IconButton icon="photo_library" label="Elegir de la galería" disabled={busy} onClick={openGallery} />
     </>
+  );
+}
+
+/** Photo field for forms (incidents, delivery proof): camera or gallery, with a count. */
+export function PhotoPicker({ files, onChange, label = "Fotos (opcional)" }: { files: File[]; onChange: (files: File[]) => void; label?: string }) {
+  const { inputs, openCamera, openGallery } = usePickers((f) => onChange([...files, ...f]));
+  return (
+    <div className="field">
+      <label>{label}</label>
+      {inputs}
+      <div className="row wrap">
+        <Button variant="tonal" icon="photo_camera" onClick={openCamera}>
+          Tomar foto
+        </Button>
+        <Button variant="text" icon="photo_library" onClick={openGallery}>
+          Galería
+        </Button>
+        {files.length > 0 && (
+          <>
+            <span className="body-m">
+              {files.length} {files.length === 1 ? "foto" : "fotos"}
+            </span>
+            <IconButton icon="close" label="Quitar fotos" onClick={() => onChange([])} />
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -117,6 +156,127 @@ export function AddPhotoButton({
  * Every photo of the order in one place: photos added at any stage, proof of
  * pickup/delivery and quality-issue evidence.
  */
+const labelOf = (p: OrderPhotoRow) => p.step_name ?? (p.order_status ? ORDER_STATUS_LABEL[p.order_status] : "Orden");
+
+const toItems = (rows: OrderPhotoRow[]): GalleryPhoto[] =>
+  rows.map((p) => ({
+    key: p.id,
+    path: p.path,
+    label: labelOf(p),
+    by: p.taken_by,
+    at: p.created_at,
+    caption: p.caption,
+    photoId: p.id,
+    takenBy: p.taken_by,
+  }));
+
+function usePhotoUrls(paths: string[]) {
+  return useQuery({
+    queryKey: ["photo-urls", paths.join("|")],
+    enabled: paths.length > 0,
+    staleTime: 30 * 60_000,
+    queryFn: () => signedUrls(paths),
+  });
+}
+
+/** Full-screen viewer with previous/next, open original and delete. */
+function PhotoLightbox({
+  items,
+  urls,
+  index,
+  onIndex,
+  onDeleted,
+}: {
+  items: GalleryPhoto[];
+  urls: Record<string, string> | undefined;
+  index: number;
+  onIndex: (i: number | null) => void;
+  onDeleted: () => void;
+}) {
+  const { user } = useAuth();
+  const { can } = useTenant();
+  const name = useMemberNames();
+  const toast = useToast();
+  const current = items[index];
+  if (!current) return null;
+  const remove = async (id: string) => {
+    const { error } = await supabase.from("order_photos").delete().eq("id", id);
+    if (error) return toast.show(errorMessage(error), { error: true });
+    onIndex(null);
+    onDeleted();
+  };
+  return (
+    <div className="scrim" onClick={() => onIndex(null)}>
+      <div className="lightbox" onClick={(e) => e.stopPropagation()}>
+        {urls?.[current.path] ? <img src={urls[current.path]} alt="" /> : <Loading />}
+        <div className="row between wrap" style={{ padding: "12px 4px 0" }}>
+          <div>
+            <div className="title-s">{current.label}</div>
+            <div className="body-s muted">
+              {dateTime(current.at)} · {current.by ? name(current.by) : ""}
+            </div>
+            {current.caption && <div className="body-m">{current.caption}</div>}
+          </div>
+          <div className="row">
+            <IconButton icon="chevron_left" label="Anterior" disabled={index === 0} onClick={() => onIndex(index - 1)} />
+            <IconButton icon="chevron_right" label="Siguiente" disabled={index === items.length - 1} onClick={() => onIndex(index + 1)} />
+            {urls?.[current.path] && (
+              <a className="icon-btn" href={urls[current.path]} target="_blank" rel="noreferrer" title="Abrir original">
+                <Icon name="open_in_new" />
+              </a>
+            )}
+            {current.photoId && (current.takenBy === user?.id || can("orders.edit")) && (
+              <IconButton icon="delete" label="Eliminar foto" onClick={() => remove(current.photoId!)} />
+            )}
+            <IconButton icon="close" label="Cerrar" onClick={() => onIndex(null)} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Small thumbnails for cards (production board): tap to see them full size. */
+export function PhotoStrip({ orderId, photos, max = 3 }: { orderId: string; photos: OrderPhotoRow[]; max?: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState<number | null>(null);
+  const items = toItems([...photos].sort((a, b) => a.created_at.localeCompare(b.created_at)));
+  const shown = items.slice(-max);
+  const urls = usePhotoUrls(items.map((i) => i.path));
+  if (!items.length) return null;
+  const hidden = items.length - shown.length;
+  return (
+    <>
+      <div className="photo-strip">
+        {shown.map((p, i) => (
+          <button
+            key={p.key}
+            type="button"
+            className="photo-thumb"
+            title={p.label}
+            onClick={() => setOpen(items.length - shown.length + i)}
+          >
+            {urls.data?.[p.path] ? <img src={urls.data[p.path]} alt="" loading="lazy" /> : <span className="spinner sm" />}
+            {i === 0 && hidden > 0 && <span className="photo-more">+{hidden}</span>}
+          </button>
+        ))}
+      </div>
+      {open !== null && (
+        <PhotoLightbox
+          items={items}
+          urls={urls.data}
+          index={open}
+          onIndex={setOpen}
+          onDeleted={() => {
+            qc.invalidateQueries({ queryKey: ["board"] });
+            qc.invalidateQueries({ queryKey: ["order-photos", orderId] });
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 export function OrderPhotoGallery({
   orderId,
   extra = [],
@@ -124,41 +284,15 @@ export function OrderPhotoGallery({
   orderId: string;
   extra?: { path: string; label: string; at: string | null; by: string | null }[];
 }) {
-  const { user } = useAuth();
-  const { can } = useTenant();
-  const name = useMemberNames();
   const qc = useQueryClient();
-  const toast = useToast();
   const photos = useOrderPhotos(orderId);
   const [open, setOpen] = useState<number | null>(null);
 
   const items: GalleryPhoto[] = [
-    ...(photos.data ?? []).map((p) => ({
-      key: p.id,
-      path: p.path,
-      label: p.step_name ?? (p.order_status ? ORDER_STATUS_LABEL[p.order_status] : "Orden"),
-      by: p.taken_by,
-      at: p.created_at,
-      caption: p.caption,
-      photoId: p.id,
-      takenBy: p.taken_by,
-    })),
+    ...toItems(photos.data ?? []),
     ...extra.map((e, i) => ({ key: `x${i}-${e.path}`, path: e.path, label: e.label, by: e.by, at: e.at, caption: null })),
   ].sort((a, b) => String(a.at).localeCompare(String(b.at)));
-
-  const urls = useQuery({
-    queryKey: ["photo-urls", items.map((i) => i.path).join("|")],
-    enabled: items.length > 0,
-    staleTime: 30 * 60_000,
-    queryFn: () => signedUrls(items.map((i) => i.path)),
-  });
-
-  const remove = async (id: string) => {
-    const { error } = await supabase.from("order_photos").delete().eq("id", id);
-    if (error) return toast.show(errorMessage(error), { error: true });
-    setOpen(null);
-    qc.invalidateQueries({ queryKey: ["order-photos", orderId] });
-  };
+  const urls = usePhotoUrls(items.map((i) => i.path));
 
   if (photos.isLoading) return <Loading />;
   if (!items.length) {
@@ -168,7 +302,6 @@ export function OrderPhotoGallery({
       </Empty>
     );
   }
-  const current = open !== null ? items[open] : null;
   return (
     <>
       <div className="photo-grid">
@@ -179,34 +312,17 @@ export function OrderPhotoGallery({
           </button>
         ))}
       </div>
-      {current && (
-        <div className="scrim" onClick={() => setOpen(null)}>
-          <div className="lightbox" onClick={(e) => e.stopPropagation()}>
-            {urls.data?.[current.path] && <img src={urls.data[current.path]} alt="" />}
-            <div className="row between wrap" style={{ padding: "12px 4px 0" }}>
-              <div>
-                <div className="title-s">{current.label}</div>
-                <div className="body-s muted">
-                  {dateTime(current.at)} · {current.by ? name(current.by) : ""}
-                </div>
-                {current.caption && <div className="body-m">{current.caption}</div>}
-              </div>
-              <div className="row">
-                <IconButton icon="chevron_left" label="Anterior" disabled={open === 0} onClick={() => setOpen((o) => (o ?? 0) - 1)} />
-                <IconButton icon="chevron_right" label="Siguiente" disabled={open === items.length - 1} onClick={() => setOpen((o) => (o ?? 0) + 1)} />
-                {urls.data?.[current.path] && (
-                  <a className="icon-btn" href={urls.data[current.path]} target="_blank" rel="noreferrer" title="Abrir original">
-                    <Icon name="open_in_new" />
-                  </a>
-                )}
-                {current.photoId && (current.takenBy === user?.id || can("orders.edit")) && (
-                  <IconButton icon="delete" label="Eliminar foto" onClick={() => remove(current.photoId!)} />
-                )}
-                <IconButton icon="close" label="Cerrar" onClick={() => setOpen(null)} />
-              </div>
-            </div>
-          </div>
-        </div>
+      {open !== null && (
+        <PhotoLightbox
+          items={items}
+          urls={urls.data}
+          index={open}
+          onIndex={setOpen}
+          onDeleted={() => {
+            qc.invalidateQueries({ queryKey: ["order-photos", orderId] });
+            qc.invalidateQueries({ queryKey: ["board"] });
+          }}
+        />
       )}
     </>
   );

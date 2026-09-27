@@ -22,6 +22,8 @@ const MESSAGES: [RegExp, string][] = [
   [/deliveries_one_active/i, "Ya hay una parada activa de ese tipo para esta orden."],
   [/this address is already taken|tenants_slug/i, "Esa dirección web ya está en uso."],
   [/add the order items before production/i, "Captura los servicios de la orden antes de enviarla a producción."],
+  [/not enough loyalty points/i, "El cliente no tiene suficientes puntos."],
+  [/loyalty program is disabled/i, "El programa de lealtad está desactivado."],
   [/no production workflow/i, "Configura un flujo de producción en Configuración."],
   [/below the minimum/i, "La orden no alcanza el mínimo para entrega."],
   [/at least one active owner/i, "El negocio debe conservar al menos un dueño activo."],
