@@ -82,43 +82,77 @@ export function TrackingPage() {
   };
 
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--surface)" }}>
+    <div className="tracking-page">
       <main className="tracking">
-        <div className="row gap-12">
+        <header className="row between">
+          <div className="col" style={{ gap: 1 }}>
+            <span className="body-s muted">Orden #{o.number}</span>
+            <span className="title-s">{o.business.name}</span>
+          </div>
           {o.business.logo_url ? (
-            <img src={o.business.logo_url} alt="" width={48} height={48} style={{ borderRadius: 12, objectFit: "cover" }} />
+            <img src={o.business.logo_url} alt="" width={44} height={44} className="avatar" style={{ objectFit: "cover", width: 44, height: 44 }} />
           ) : (
-            <span className="avatar" style={{ width: 48, height: 48, fontSize: 20 }}>
+            <span className="avatar" style={{ width: 44, height: 44 }} aria-hidden>
               {o.business.name[0]}
             </span>
           )}
-          <div>
-            <div className="title-m">{o.business.name}</div>
-            <div className="body-s muted">Orden #{o.number}</div>
-          </div>
-        </div>
+        </header>
 
-        <Card variant="elevated">
-          <div className="col gap-16">
-            <div>
-              <div className="body-m muted">Hola {o.customer_first_name},</div>
-              <h1 className="headline-s" style={{ marginTop: 4 }}>
-                {o.status === "cancelled"
-                  ? "Tu orden fue cancelada"
-                  : o.status === "delivered"
-                    ? "Tu orden fue entregada"
-                    : o.status === "ready"
-                      ? o.fulfillment === "walk_in"
-                        ? "Tu orden está lista para recoger"
-                        : "Tu orden está lista"
-                      : o.status === "out_for_delivery"
-                        ? "Tu orden va en camino"
-                        : o.status === "in_production"
-                          ? "Estamos trabajando en tu orden"
-                          : "Recibimos tu orden"}
-              </h1>
+        <section className={`hero ${o.status === "delivered" ? "mint" : o.status === "cancelled" ? "peach" : o.status === "ready" ? "butter" : ""}`}>
+          <span className="hero-dot" aria-hidden />
+          <div className="hero-body">
+            {o.promised_at && !["delivered", "cancelled"].includes(o.status) ? (
+              <span className="availability">
+                <span className="dot" /> Entrega estimada · {dateTime(o.promised_at)}
+              </span>
+            ) : o.delivered_at ? (
+              <span className="availability">
+                <span className="dot" /> Entregada · {dateTime(o.delivered_at)}
+              </span>
+            ) : null}
+            <h1>
+              {o.status === "cancelled"
+                ? "Tu orden fue cancelada."
+                : o.status === "delivered"
+                  ? "¡Listo! Tu ropa ya está en casa."
+                  : o.status === "ready"
+                    ? o.fulfillment === "walk_in"
+                      ? "Tu ropa está lista para recoger."
+                      : "Tu ropa está lista."
+                    : o.status === "out_for_delivery"
+                      ? "Tu ropa va en camino."
+                      : o.status === "in_production"
+                        ? "Estamos lavando tu ropa."
+                        : "Recibimos tu orden."}
+            </h1>
+            <p>Hola {o.customer_first_name}, aquí puedes ver cómo va tu orden.</p>
+          </div>
+          {o.balance_cents > 0 && o.status !== "cancelled" && o.online_payment && (
+            <button type="button" className="cta" onClick={pay} disabled={paying}>
+              {paying ? "Abriendo pago…" : `Pagar ${money(o.balance_cents)}`}
+              <span className="cta-arrow">
+                <Icon name="arrow_forward" />
+              </span>
+            </button>
+          )}
+        </section>
+
+        {o.status !== "cancelled" && (
+          <section className="ticket">
+            <div className="ticket-top">
+              <div className="col" style={{ gap: 2 }}>
+                <span className="body-s muted">Orden #{o.number}</span>
+                <span className="title-m">{TRACKING_STAGES[Math.max(0, stage)]?.label ?? ""}</span>
+              </div>
+              {o.promised_at && (
+                <div className="col" style={{ gap: 2, alignItems: "flex-end" }}>
+                  <span className="body-s muted">{o.status === "delivered" ? "Entregada" : "Entrega"}</span>
+                  <span className="title-s">{dateTime(o.delivered_at ?? o.promised_at)}</span>
+                </div>
+              )}
             </div>
-            {o.status !== "cancelled" && (
+            <div className="ticket-cut" aria-hidden />
+            <div className="ticket-bottom">
               <div className="stepper" aria-label="Progreso">
                 {TRACKING_STAGES.filter((s) => o.fulfillment === "delivery" || s.key !== "delivery").map((s) => {
                   const i = TRACKING_STAGES.indexOf(s);
@@ -130,25 +164,12 @@ export function TrackingPage() {
                   );
                 })}
               </div>
-            )}
-            {o.promised_at && !["delivered", "cancelled"].includes(o.status) && (
-              <div className="row">
-                <Icon name="event" />
-                <span>
-                  Entrega estimada: <strong>{dateTime(o.promised_at)}</strong>
-                </span>
-              </div>
-            )}
-            {o.delivered_at && (
-              <div className="row">
-                <Icon name="done_all" />
-                <span>Entregada {dateTime(o.delivered_at)}</span>
-              </div>
-            )}
-          </div>
-        </Card>
+            </div>
+          </section>
+        )}
 
-        {o.balance_cents > 0 && o.status !== "cancelled" && (
+        {payError && <Banner tone="error">{payError}</Banner>}
+        {o.balance_cents > 0 && o.status !== "cancelled" && !o.online_payment && (
           <Card>
             <div className="row between wrap gap-12">
               <div>
@@ -156,12 +177,11 @@ export function TrackingPage() {
                 <div className="headline-s num">{money(o.balance_cents)}</div>
               </div>
               {o.online_payment && (
-                <Button size="lg" icon="credit_card" onClick={pay} loading={paying}>
+                <Button icon="credit_card" onClick={pay} loading={paying}>
                   Pagar ahora
                 </Button>
               )}
             </div>
-            {payError && <Banner tone="error">{payError}</Banner>}
           </Card>
         )}
 

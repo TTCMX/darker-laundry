@@ -26,14 +26,14 @@ El sistema operativo para lavanderías con recolección y entrega:
 
 ## Stack
 
-React 19 + TypeScript + Vite · Supabase (Postgres, Auth, RLS, Storage, Realtime) · Vercel Functions · MercadoPago · Resend · Diseño Material 3.
+React 19 + TypeScript + Vite · Supabase (Postgres, Auth, RLS, Storage, Realtime) · Vercel Functions · MercadoPago · Resend · Diseño "Lúdico Pro" (Outfit, paleta pastel cálida).
 
 ## Estructura
 
 ```
 src/domain/        Reglas de negocio puras (motor de precios, pagos, estados…), compartidas por UI y API
 src/features/      Pantallas por módulo
-src/ui/            Sistema de diseño (Material 3)
+src/ui/            Sistema de diseño "Lúdico Pro" (tokens en theme.css)
 api/               Funciones serverless de Vercel (precios, pagos, webhooks, notificaciones)
 supabase/          Migraciones SQL y tests de base de datos (RLS, flujo operativo)
 docs/              Puesta en marcha, arquitectura, análisis del sistema anterior

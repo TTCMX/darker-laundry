@@ -4,10 +4,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { AuthProvider, TenantProvider } from "./lib/session";
 import { ToastProvider } from "./ui/components";
-import "@fontsource/roboto/latin-400.css";
-import "@fontsource/roboto/latin-500.css";
-import "@fontsource/roboto/latin-700.css";
-import "@fontsource-variable/roboto-flex/index.css";
+import "@fontsource-variable/outfit/wght.css";
 import "./ui/theme.css";
 
 const queryClient = new QueryClient({
