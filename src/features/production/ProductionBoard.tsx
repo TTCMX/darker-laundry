@@ -12,6 +12,7 @@ import { Banner, Button, Chip, Icon, Loading } from "../../ui/components";
 import { errorMessage } from "../../lib/errors";
 import { PriorityBadge, RiskBadge } from "../shared";
 import { IssueDialog } from "../orders/OrderDialogs";
+import { AddPhotoButton } from "../orders/OrderPhotos";
 
 type BoardOrder = Order & {
   customers: { name: string };
@@ -205,7 +206,12 @@ export function ProductionBoard() {
                       </div>
                     )}
                     <div className="actions">
-                      {o.status === "picked_up" && can("orders.edit", "production.manage") && (
+                      {o.status === "picked_up" && o.order_items.length === 0 && (
+                        <Link className="btn tonal sm" to={`/orders/${o.id}/edit`}>
+                          Capturar servicios
+                        </Link>
+                      )}
+                      {o.status === "picked_up" && o.order_items.length > 0 && can("orders.edit", "production.manage") && (
                         <Button size="sm" icon="play_arrow" onClick={() => act.mutate({ kind: "start", id: o.id })}>
                           Iniciar
                         </Button>
@@ -241,6 +247,7 @@ export function ProductionBoard() {
                           Entregada
                         </Button>
                       )}
+                      <AddPhotoButton compact orderId={o.id} stepId={step?.id ?? null} />
                       {can("quality.report") && o.status === "in_production" && (
                         <button className="icon-btn" style={{ width: 32, height: 32 }} title="Reportar incidencia" onClick={() => setReporting(o)}>
                           <Icon name="report" size="sm" />

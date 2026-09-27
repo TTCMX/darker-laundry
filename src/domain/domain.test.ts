@@ -75,8 +75,9 @@ describe("derivePaymentState", () => {
     expect(derivePaymentState(10000, [e("payment", 10000), e("refund", 3000)]).status).toBe("partially_paid");
   });
 
-  it("zero-total orders are paid", () => {
+  it("zero-total orders are paid, unless they have no items yet", () => {
     expect(derivePaymentState(0, []).status).toBe("paid");
+    expect(derivePaymentState(0, [], false).status).toBe("pending");
   });
 });
 

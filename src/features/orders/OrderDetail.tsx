@@ -40,6 +40,7 @@ import {
   SEVERITY_LABEL,
   SEVERITY_TONE,
 } from "../shared";
+import { AddPhotoButton, OrderPhotoGallery, useOrderPhotos } from "./OrderPhotos";
 import { IssueDialog, PaymentDialog, ReasonDialog, RefundDialog, ResolveIssueDialog, ScheduleDialog } from "./OrderDialogs";
 
 interface OrderBundle {
@@ -86,11 +87,12 @@ export function useOrderBundle(id: string) {
   });
 }
 
-type TabKey = "summary" | "production" | "delivery" | "payments" | "quality" | "messages" | "history";
+type TabKey = "summary" | "production" | "delivery" | "payments" | "quality" | "photos" | "messages" | "history";
 
 export function OrderDetail() {
   const { id = "" } = useParams();
   const q = useOrderBundle(id);
+  const photoRows = useOrderPhotos(id);
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
@@ -153,6 +155,17 @@ export function OrderDetail() {
   const pendingMessages = notifications.filter((n) => n.status === "pending" && n.mode === "manual").length;
   const actor = { user_id: user?.id ?? "", can_work: can("production.work"), can_manage: can("production.manage") };
   const courierMembers = (team.data ?? []).filter((m) => m.active && m.role_home === "courier");
+  // Pickup orders can be booked before knowing what the customer sends.
+  const needsItems = items.length === 0 && open;
+  const photoCount =
+    (photoRows.data?.length ?? 0) +
+    deliveries.reduce((n, d) => n + d.proof_paths.length, 0) +
+    issues.reduce((n, i) => n + i.photo_paths.length, 0);
+  const captureItems = (
+    <Button icon="edit_note" onClick={() => navigate(`/orders/${id}/edit`)}>
+      Capturar servicios
+    </Button>
+  );
 
   // Primary next step for the order, depending on its status.
   const primary = (() => {
@@ -170,13 +183,19 @@ export function OrderDetail() {
             <Button variant="tonal" icon="inventory_2" onClick={() => setStatus.mutate({ status: "picked_up" })} loading={setStatus.isPending}>
               Recibir en tienda
             </Button>
-            <Button icon="local_laundry_service" onClick={() => startProduction.mutate(undefined)} loading={startProduction.isPending}>
-              Enviar a producción
-            </Button>
+            {needsItems ? (
+              captureItems
+            ) : (
+              <Button icon="local_laundry_service" onClick={() => startProduction.mutate(undefined)} loading={startProduction.isPending}>
+                Enviar a producción
+              </Button>
+            )}
           </>
         );
       case "picked_up":
-        return (
+        return needsItems ? (
+          captureItems
+        ) : (
           <Button icon="local_laundry_service" onClick={() => startProduction.mutate(undefined)} loading={startProduction.isPending}>
             Enviar a producción
           </Button>
@@ -322,13 +341,18 @@ export function OrderDetail() {
               )}
             </div>
           </div>
+          {needsItems && (
+            <Banner tone="warning" icon="edit_note">
+              Esta orden aún no tiene servicios. Captúralos al recibir la ropa para calcular el total y enviarla a producción.
+            </Banner>
+          )}
           {order.status === "cancelled" && (
             <Banner tone="error">
               Cancelada {dateTime(order.cancelled_at)}
               {order.cancel_reason ? `: ${order.cancel_reason}` : ""}
             </Banner>
           )}
-          {(primary || (can("payments.record") && order.balance_cents > 0 && order.status !== "cancelled")) && (
+          {
             <div className="row wrap mt-16 no-print">
               {primary}
               {can("payments.record") && order.balance_cents > 0 && order.status !== "cancelled" && (
@@ -336,8 +360,9 @@ export function OrderDetail() {
                   Cobrar {money(order.balance_cents)}
                 </Button>
               )}
+              <AddPhotoButton orderId={order.id} label="Foto" onAdded={() => setTab("photos")} />
             </div>
-          )}
+          }
         </Card>
 
         <Tabs
@@ -350,6 +375,7 @@ export function OrderDetail() {
             { value: "payments", label: "Pagos" },
             { value: "quality", label: `Incidencias${openIssues ? ` (${openIssues})` : ""}` },
             { value: "messages", label: `Mensajes${pendingMessages ? ` (${pendingMessages})` : ""}` },
+            { value: "photos", label: `Fotos${photoCount ? ` (${photoCount})` : ""}` },
             { value: "history", label: "Historial" },
           ]}
         />
@@ -722,6 +748,27 @@ export function OrderDetail() {
                 })}
               </div>
             )}
+          </Card>
+        )}
+
+        {tab === "photos" && (
+          <Card title="Fotos" action={<AddPhotoButton orderId={order.id} />}>
+            <OrderPhotoGallery
+              orderId={order.id}
+              extra={[
+                ...deliveries.flatMap((d) =>
+                  d.proof_paths.map((path) => ({
+                    path,
+                    label: d.type === "pickup" ? "Recolección" : "Entrega",
+                    at: d.completed_at,
+                    by: d.completed_by,
+                  })),
+                ),
+                ...issues.flatMap((i) =>
+                  i.photo_paths.map((path) => ({ path, label: `Incidencia${i.phase_name ? ` · ${i.phase_name}` : ""}`, at: i.created_at, by: i.reported_by })),
+                ),
+              ]}
+            />
           </Card>
         )}
 

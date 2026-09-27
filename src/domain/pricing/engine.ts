@@ -236,6 +236,9 @@ export function quote(input: PricingInput, ctx: PricingContext): PricingResult {
         // Extension points for the Loyalty / Memberships modules (V1).
         break;
       case "delivery_fee": {
+        // An order booked before knowing what the customer sends has nothing
+        // to charge yet: the fee is computed once items are captured.
+        if (!lines.length) break;
         if (input.delivery_fee_override_cents !== null && input.delivery_fee_override_cents !== undefined) {
           deliveryFee = Math.max(0, Math.round(input.delivery_fee_override_cents));
         } else if (input.delivery) {
@@ -266,7 +269,7 @@ export function quote(input: PricingInput, ctx: PricingContext): PricingResult {
   const steps: BreakdownStep[] = [{ key: "list_subtotal", label: "Subtotal", amount_cents: listSubtotal }];
   if (volumeSavings) steps.push({ key: "volume", label: "Precio por volumen", amount_cents: -volumeSavings });
   for (const d of applied) steps.push({ key: `discount:${d.id}`, label: d.name, amount_cents: -d.amount_cents });
-  if (deliveryFee || deliveryWaived || input.delivery) {
+  if (lines.length && (deliveryFee || deliveryWaived || input.delivery)) {
     steps.push({
       key: "delivery_fee",
       label: deliveryWaived ? "Envío (gratis)" : "Envío",

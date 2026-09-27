@@ -37,7 +37,9 @@ export const POST = handle(async (request) => {
   requirePermission(member, body.order?.id ? "orders.edit" : "orders.create");
 
   if (!body.order?.customer_id) throw new HttpError(422, "customer_id is required");
-  if (!Array.isArray(body.items) || body.items.length === 0) throw new HttpError(422, "The order needs at least one item");
+  // Items may be empty: pickups are often booked before knowing what the
+  // customer will send. They are captured when the laundry is received.
+  if (!Array.isArray(body.items)) throw new HttpError(422, "items must be a list");
   if (body.items.length > 200) throw new HttpError(422, "Too many items");
 
   const db = adminClient();
@@ -102,6 +104,7 @@ export const POST = handle(async (request) => {
   }
 
   if (
+    body.items.length > 0 &&
     min_order_cents !== null &&
     pricing.subtotal_cents - pricing.discount_cents < min_order_cents &&
     !member.permissions.has("orders.price_override")

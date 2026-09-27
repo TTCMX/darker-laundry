@@ -139,10 +139,65 @@ export async function signedUrl(path: string) {
   return data?.signedUrl ?? null;
 }
 
+export async function signedUrls(paths: string[]): Promise<Record<string, string>> {
+  if (!paths.length) return {};
+  const { data } = await supabase.storage.from("evidence").createSignedUrls(paths, 3600);
+  const out: Record<string, string> = {};
+  for (const d of data ?? []) if (d.path && d.signedUrl) out[d.path] = d.signedUrl;
+  return out;
+}
+
+/**
+ * Phone photos are often 4–10 MB. Resize to 1600px and re-encode as JPEG
+ * before uploading; formats the browser cannot decode (e.g. HEIC outside
+ * Safari) are uploaded as they are.
+ */
+async function compressImage(file: File, maxSide = 1600, quality = 0.8): Promise<Blob> {
+  if (!file.type.startsWith("image/") || file.size < 300_000) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", quality));
+    return blob && blob.size < file.size ? blob : file;
+  } catch {
+    return file;
+  }
+}
+
 export async function uploadEvidence(tenantId: string, file: File, folder: string) {
-  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const body = await compressImage(file);
+  const ext = body === file ? (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") : "jpg";
   const path = `${tenantId}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { error } = await supabase.storage.from("evidence").upload(path, file, { contentType: file.type || "image/jpeg" });
+  const { error } = await supabase.storage
+    .from("evidence")
+    .upload(path, body, { contentType: body === file ? file.type || "image/jpeg" : "image/jpeg" });
   if (error) throw error;
   return path;
+}
+
+/** Uploads photos and attaches them to the order (status and step are stamped by the database). */
+export async function addOrderPhotos(
+  tenantId: string,
+  orderId: string,
+  files: File[],
+  opts: { stepId?: string | null; deliveryId?: string | null; caption?: string | null } = {},
+) {
+  const paths = await Promise.all(files.map((f) => uploadEvidence(tenantId, f, `orders/${orderId}`)));
+  const { error } = await supabase.from("order_photos").insert(
+    paths.map((path) => ({
+      tenant_id: tenantId,
+      order_id: orderId,
+      path,
+      caption: opts.caption || null,
+      step_id: opts.stepId ?? null,
+      delivery_id: opts.deliveryId ?? null,
+    })),
+  );
+  if (error) throw error;
+  return paths.length;
 }
