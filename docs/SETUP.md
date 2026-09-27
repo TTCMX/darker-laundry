@@ -141,6 +141,22 @@ No requiere configuración en el servidor. Usa el mismo protocolo que la app int
 3. Navegadores compatibles: Chrome o Edge en Android, Windows, macOS y ChromeOS. Safari en iPhone no permite Bluetooth; ahí puedes usar el navegador Bluefy o **⋮ → Imprimir (navegador)**, que imprime el mismo ticket en cualquier impresora instalada (USB, Wi‑Fi o PDF).
 4. En **Ajustes → Tickets** se configura el contenido: encabezado, pie, link o QR de seguimiento, puntos de lealtad y espacio para anotar a mano. Los datos del negocio (nombre, RFC, dirección y teléfono) salen de **Ajustes → Negocio**.
 
+## 5c. Análisis (back office)
+
+Menú **Análisis** (dueños y gerentes; permiso `reports.view`, que se puede dar a otros roles en **Equipo → Roles**). Pestañas:
+
+- **Ventas:** ventas, órdenes, ticket promedio, cobrado, clientes nuevos, por cobrar, descuentos y cancelaciones; gráfica por día/semana/mes, mostrador vs. domicilio, métodos de pago y horas pico.
+- **Recibos** y **Pagos:** todos los movimientos del periodo con filtros y totales.
+- **Servicios:** servicios y categorías más vendidos, descuentos aplicados y costo del programa de lealtad.
+- **Clientes:** compradores, nuevos, retención, mejores clientes y clientes valiosos que dejaron de venir.
+- **Empleados:** órdenes, ventas y cobros registrados por persona; fases completadas y tiempos contra lo estimado; paradas del courier; incidencias.
+- **Operación:** entregas a tiempo, tiempos de proceso, recolecciones/entregas, visitas fallidas y cancelaciones.
+- **Incidencias:** por tipo, fase, severidad y responsable, con detalle.
+
+Cada periodo se compara con el anterior de la misma duración, el periodo va en el link (se puede compartir) y cada tabla se descarga en CSV para Excel o Google Sheets. Las ventas cuentan cuando se crea la orden (sin canceladas); lo cobrado cuenta cuando se aplica el pago.
+
+Requiere la migración `20260928000001_analytics.sql`.
+
 ## 6. Desarrollo local
 
 Con Docker instalado:

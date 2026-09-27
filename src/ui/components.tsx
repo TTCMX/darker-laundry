@@ -298,7 +298,18 @@ export function Dialog({
   );
 }
 
-export function Menu({ trigger, children }: { trigger: (open: () => void) => ReactNode; children: (close: () => void) => ReactNode }) {
+export function Menu({
+  trigger,
+  children,
+  up,
+  className,
+}: {
+  trigger: (open: () => void) => ReactNode;
+  children: (close: () => void) => ReactNode;
+  /** Open above the trigger (e.g. from a bottom bar). */
+  up?: boolean;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -310,10 +321,10 @@ export function Menu({ trigger, children }: { trigger: (open: () => void) => Rea
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div ref={ref} className={className} style={{ position: "relative" }}>
       {trigger(() => setOpen((v) => !v))}
       {open && (
-        <div className="menu" style={{ right: 0, top: "100%" }}>
+        <div className="menu" style={up ? { right: 0, bottom: "100%" } : { right: 0, top: "100%" }}>
           {children(() => setOpen(false))}
         </div>
       )}
