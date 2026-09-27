@@ -2,6 +2,7 @@
 // (stored in `tenants.settings`), with defaults so a new tenant works on day one.
 
 import { DEFAULT_CUSTOMER_RULES, type CustomerStatusRules } from "./customers.js";
+import { DEFAULT_LOYALTY, type LoyaltySettings } from "./loyalty.js";
 import type { PaymentMethod } from "./payments.js";
 import { DEFAULT_STAGES } from "./pricing/engine.js";
 import type { PricingSettings, TaxSettings } from "./pricing/types.js";
@@ -40,6 +41,7 @@ export interface TenantSettings {
   customers: { status_rules: CustomerStatusRules };
   payments: { methods: PaymentMethod[]; allow_overpayment: boolean };
   notifications: { email_enabled: boolean; whatsapp_enabled: boolean; reply_to: string | null };
+  loyalty: LoyaltySettings;
 }
 
 export const DEFAULT_SETTINGS: TenantSettings = {
@@ -67,6 +69,7 @@ export const DEFAULT_SETTINGS: TenantSettings = {
   customers: { status_rules: DEFAULT_CUSTOMER_RULES },
   payments: { methods: ["cash", "card", "transfer", "online"], allow_overpayment: false },
   notifications: { email_enabled: true, whatsapp_enabled: true, reply_to: null },
+  loyalty: DEFAULT_LOYALTY,
 };
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>

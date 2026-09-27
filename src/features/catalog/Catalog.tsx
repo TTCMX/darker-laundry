@@ -481,7 +481,7 @@ function Discounts({ discounts, products, categories }: { discounts: DiscountRow
               <div key={d.id} className="list-item clickable" onClick={() => setEditing(d)}>
                 <div className="grow">
                   <div className="headline">
-                    {d.name} {d.code && <Badge tone="outline">{d.code}</Badge>}
+                    {d.name} {d.code && <Badge tone="outline">{d.code}</Badge>} {d.auto_apply && <Badge tone="secondary">Automático</Badge>}
                   </div>
                   <div className="supporting">
                     {d.kind === "percentage" ? `${d.value}%` : money(d.value)}
@@ -518,6 +518,7 @@ function DiscountDialog({ discount, products, categories, onClose }: { discount:
     ends_at: toLocalDate(discount?.ends_at ?? null),
     usage_limit: discount?.usage_limit?.toString() ?? "",
     active: discount?.active ?? true,
+    auto_apply: discount?.auto_apply ?? false,
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((x) => ({ ...x, [k]: v }));
   const toggle = (k: "product_ids" | "category_ids", id: string) => set(k, f[k].includes(id) ? f[k].filter((x) => x !== id) : [...f[k], id]);
@@ -536,6 +537,7 @@ function DiscountDialog({ discount, products, categories, onClose }: { discount:
       ends_at: f.ends_at ? new Date(`${f.ends_at}T23:59:59`).toISOString() : null,
       usage_limit: f.usage_limit ? Number(f.usage_limit) : null,
       active: f.active,
+      auto_apply: f.auto_apply,
     });
     if (ok) onClose();
   };
@@ -597,6 +599,14 @@ function DiscountDialog({ discount, products, categories, onClose }: { discount:
           ))}
         </div>
         <Checkbox label="Activo" checked={f.active} onChange={(v) => set("active", v)} />
+        <Checkbox
+          label="Aplicar automáticamente en órdenes nuevas (se puede quitar en cada orden)"
+          checked={f.auto_apply}
+          onChange={(v) => set("auto_apply", v)}
+        />
+        <p className="body-s muted" style={{ margin: 0 }}>
+          Con código, el descuento no aparece en la lista de la orden: se aplica escribiendo el código.
+        </p>
       </div>
     </Dialog>
   );

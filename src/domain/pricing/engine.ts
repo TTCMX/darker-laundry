@@ -220,6 +220,9 @@ export function quote(input: PricingInput, ctx: PricingContext): PricingResult {
   let deliveryWaived = false;
   let taxCents: Cents = 0;
   let taxIncluded: Cents = 0;
+  let pointsRedeemed = 0;
+  let credit: Cents = 0;
+  let creditRejected: PricingResult["credit_rejected"] = null;
 
   const netTotal = () => lines.reduce((s, l) => s + l.net_cents, 0);
 
@@ -232,9 +235,27 @@ export function quote(input: PricingInput, ctx: PricingContext): PricingResult {
         ({ applied, rejected } = applyDiscounts(lines, input, ctx));
         break;
       case "membership":
-      case "credits":
-        // Extension points for the Loyalty / Memberships modules (V1).
+        // Extension point for the Memberships module.
         break;
+      case "credits": {
+        // Loyalty points pay part of the services (never the delivery fee or
+        // tax): each point is worth `point_value_cents`, capped at what is left.
+        const requested = Math.max(0, Math.floor(input.points_to_redeem ?? 0));
+        if (!requested) break;
+        const loyalty = ctx.loyalty;
+        if (!loyalty?.enabled || loyalty.point_value_cents <= 0) {
+          creditRejected = "disabled";
+          break;
+        }
+        if (requested < loyalty.min_redeem_points) {
+          creditRejected = "min_points";
+          break;
+        }
+        const usable = Math.floor(netTotal() / loyalty.point_value_cents);
+        pointsRedeemed = Math.min(requested, usable);
+        credit = pointsRedeemed * loyalty.point_value_cents;
+        break;
+      }
       case "delivery_fee": {
         // An order booked before knowing what the customer sends has nothing
         // to charge yet: the fee is computed once items are captured.
@@ -264,11 +285,12 @@ export function quote(input: PricingInput, ctx: PricingContext): PricingResult {
   const volumeSavings = lines.reduce((s, l) => s + l.volume_savings_cents, 0);
   const subtotal = lines.reduce((s, l) => s + l.gross_cents, 0);
   const discount = lines.reduce((s, l) => s + l.discount_cents, 0);
-  const total = subtotal - discount + deliveryFee + taxCents;
+  const total = subtotal - discount - credit + deliveryFee + taxCents;
 
   const steps: BreakdownStep[] = [{ key: "list_subtotal", label: "Subtotal", amount_cents: listSubtotal }];
   if (volumeSavings) steps.push({ key: "volume", label: "Precio por volumen", amount_cents: -volumeSavings });
   for (const d of applied) steps.push({ key: `discount:${d.id}`, label: d.name, amount_cents: -d.amount_cents });
+  if (credit) steps.push({ key: "credits", label: `Puntos (${pointsRedeemed})`, amount_cents: -credit });
   if (lines.length && (deliveryFee || deliveryWaived || input.delivery)) {
     steps.push({
       key: "delivery_fee",
@@ -294,6 +316,9 @@ export function quote(input: PricingInput, ctx: PricingContext): PricingResult {
     tax_rate_percent: ctx.tax.rate_percent,
     tax_cents: taxCents,
     tax_included_cents: taxIncluded,
+    points_redeemed: pointsRedeemed,
+    credit_cents: credit,
+    credit_rejected: creditRejected,
     total_cents: total,
     steps,
   };

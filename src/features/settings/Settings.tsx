@@ -8,14 +8,15 @@ import { resolveSettings, type DeliveryWindow, type TenantSettings, type Weekday
 import { NOTIFICATION_EVENTS, NOTIFICATION_EVENT_LABEL, TEMPLATE_VARIABLES, type NotificationEvent } from "../../domain/templates";
 import { api } from "../../lib/api";
 import { errorMessage } from "../../lib/errors";
-import { centsToInput, inputToCents } from "../../lib/format";
+import { centsToInput, inputToCents, money } from "../../lib/format";
+import { describeLoyalty } from "../../domain/loyalty";
 import { useRoles, useWorkflows } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
 import type { TemplateRow, TenantRow, WorkflowStep } from "../../lib/types";
-import { Badge, Banner, Button, Card, Checkbox, Chip, Dialog, Icon, IconButton, Loading, Select, Tabs, TextArea, TextField, useToast } from "../../ui/components";
+import { Badge, Banner, Button, Card, Checkbox, Chip, Dialog, Icon, IconButton, Loading, Segmented, Select, Tabs, TextArea, TextField, useToast } from "../../ui/components";
 
-type TabKey = "business" | "operations" | "delivery" | "pricing" | "payments" | "notifications";
+type TabKey = "business" | "operations" | "delivery" | "pricing" | "loyalty" | "payments" | "notifications";
 
 export function SettingsPage() {
   const { tenantId } = useTenant();
@@ -46,6 +47,7 @@ export function SettingsPage() {
             { value: "operations", label: "Operación" },
             { value: "delivery", label: "Entregas" },
             { value: "pricing", label: "Precios e impuestos" },
+            { value: "loyalty", label: "Lealtad" },
             { value: "payments", label: "Pagos" },
             { value: "notifications", label: "Notificaciones" },
           ]}
@@ -60,6 +62,8 @@ export function SettingsPage() {
           <DeliverySettings row={q.data} />
         ) : tab === "pricing" ? (
           <PricingSettings row={q.data} />
+        ) : tab === "loyalty" ? (
+          <LoyaltySettingsPanel row={q.data} />
         ) : tab === "payments" ? (
           <PaymentsSettings row={q.data} />
         ) : (
@@ -689,5 +693,77 @@ function TemplateDialog({ template, onClose }: { template: TemplateRow; onClose:
         )}
       </div>
     </Dialog>
+  );
+}
+
+function LoyaltySettingsPanel({ row }: { row: TenantRow }) {
+  const { draft, update, save, saving } = useSettingsDraft(row);
+  const l = draft.loyalty;
+  const set = <K extends keyof typeof l>(k: K, v: (typeof l)[K]) => update((s) => void (s.loyalty[k] = v));
+  return (
+    <Card>
+      <div className="col gap-16">
+        <Checkbox label="Activar programa de lealtad" checked={l.enabled} onChange={(v) => set("enabled", v)} />
+        <p className="body-m muted" style={{ margin: 0 }}>
+          Los puntos se acreditan cuando la orden se entrega y está pagada por completo. Se canjean como descuento en órdenes nuevas (no
+          cubren el envío). Si se cancela una orden, se devuelven los puntos usados y se retiran los ganados.
+        </p>
+        {l.enabled && (
+          <>
+            <div className="title-s">Cómo se ganan</div>
+            <Segmented
+              value={l.earn_mode}
+              onChange={(v) => set("earn_mode", v)}
+              options={[
+                { value: "amount", label: "Por monto gastado" },
+                { value: "orders", label: "Por orden" },
+              ]}
+            />
+            {l.earn_mode === "amount" ? (
+              <div className="grid cols-2">
+                <TextField label="Puntos" type="number" min="1" value={l.points_per_step} onChange={(e) => set("points_per_step", Math.max(0, Number(e.target.value)))} />
+                <TextField
+                  label="Por cada (monto)"
+                  inputMode="decimal"
+                  value={centsToInput(l.step_cents)}
+                  onChange={(e) => set("step_cents", inputToCents(e.target.value) ?? 0)}
+                />
+              </div>
+            ) : (
+              <TextField label="Puntos por orden" type="number" min="1" value={l.points_per_order} onChange={(e) => set("points_per_order", Math.max(0, Number(e.target.value)))} />
+            )}
+            <TextField
+              label="Orden mínima para ganar puntos (opcional)"
+              inputMode="decimal"
+              value={centsToInput(l.min_order_cents)}
+              onChange={(e) => set("min_order_cents", inputToCents(e.target.value))}
+            />
+            <div className="title-s">Cómo se usan</div>
+            <div className="grid cols-2">
+              <TextField
+                label="Valor de cada punto"
+                inputMode="decimal"
+                value={centsToInput(l.point_value_cents)}
+                onChange={(e) => set("point_value_cents", inputToCents(e.target.value) ?? 0)}
+              />
+              <TextField
+                label="Mínimo de puntos para canjear"
+                type="number"
+                min="0"
+                value={l.min_redeem_points}
+                onChange={(e) => set("min_redeem_points", Math.max(0, Number(e.target.value)))}
+              />
+            </div>
+            <Banner icon="loyalty">
+              {describeLoyalty(l, money)}
+              {l.point_value_cents > 0 && l.earn_mode === "amount" && l.step_cents > 0 && l.points_per_step > 0 && (
+                <> Equivale a devolver {((l.points_per_step * l.point_value_cents * 100) / l.step_cents).toFixed(1)}% de lo gastado.</>
+              )}
+            </Banner>
+          </>
+        )}
+        <SaveBar onSave={save} saving={saving} />
+      </div>
+    </Card>
   );
 }

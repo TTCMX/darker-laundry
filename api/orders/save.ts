@@ -28,6 +28,7 @@ interface SaveOrderBody {
   items: PricingItemInput[];
   discount_ids?: string[];
   delivery_fee_override_cents?: number | null;
+  points_to_redeem?: number | null;
 }
 
 export const POST = handle(async (request) => {
@@ -80,6 +81,19 @@ export const POST = handle(async (request) => {
   const hasOverride = body.delivery_fee_override_cents !== null && body.delivery_fee_override_cents !== undefined;
   if (hasOverride) requirePermission(member, "orders.price_override");
 
+  // Loyalty: the customer can only use points they have (this order's own
+  // redemption is given back first when editing).
+  const pointsRequested = Math.max(0, Math.floor(Number(body.points_to_redeem) || 0));
+  if (pointsRequested > 0) {
+    const { data: ledger, error: ledgerError } = await db
+      .from("loyalty_transactions").select("points, order_id, kind").eq("tenant_id", tenant.id).eq("customer_id", body.order.customer_id);
+    if (ledgerError) throw ledgerError;
+    const available = (ledger ?? [])
+      .filter((t) => !(body.order.id && t.order_id === body.order.id && t.kind === "redeem"))
+      .reduce((sum, t) => sum + Number(t.points), 0);
+    if (pointsRequested > available) throw new HttpError(422, "not enough loyalty points", "points");
+  }
+
   let pricing;
   try {
     pricing = quote(
@@ -94,6 +108,7 @@ export const POST = handle(async (request) => {
         discount_ids: body.discount_ids ?? [],
         delivery: rule,
         delivery_fee_override_cents: hasOverride ? body.delivery_fee_override_cents : null,
+        points_to_redeem: pointsRequested,
         now: new Date(),
       },
       ctx,

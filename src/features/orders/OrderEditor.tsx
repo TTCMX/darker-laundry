@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Page } from "../../app/Shell";
 import { deliveryRule } from "../../domain/delivery";
+import { pointsEarned } from "../../domain/loyalty";
 import { PRIORITY_LABEL, type OrderPriority } from "../../domain/orders";
 import { normalizePhone } from "../../domain/phone";
 import { PricingError, quote, type PricingResult } from "../../domain/pricing";
@@ -164,6 +165,9 @@ export function OrderEditor() {
   const [zoneId, setZoneId] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
   const [discountIds, setDiscountIds] = useState<string[]>([]);
+  const [discountCode, setDiscountCode] = useState("");
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [pointsInput, setPointsInput] = useState("");
   const [freeDelivery, setFreeDelivery] = useState(false);
   const [priority, setPriority] = useState<OrderPriority>("normal");
   const [promised, setPromised] = useState(() => isoToLocalInput(new Date(Date.now() + settings.operations.default_turnaround_hours * 3_600_000).toISOString()));
@@ -201,6 +205,7 @@ export function OrderEditor() {
         })),
       );
       setDiscountIds(discount_ids);
+      setPointsInput(order.points_redeemed ? String(order.points_redeemed) : "");
       setPriority(order.priority);
       setPromised(isoToLocalInput(order.promised_at));
       setNotes(order.notes ?? "");
@@ -220,6 +225,33 @@ export function OrderEditor() {
       setLoaded(true);
     }
   }, [id, existing.data, existing.isFetching, loaded, params]);
+
+  // New orders start with the discounts marked "apply automatically".
+  const [autoApplied, setAutoApplied] = useState(false);
+  useEffect(() => {
+    if (id || autoApplied || !catalog.data) return;
+    setAutoApplied(true);
+    const auto = catalog.data.discounts.filter((d) => d.active && d.auto_apply).map((d) => d.id);
+    if (auto.length) setDiscountIds((ids) => [...new Set([...ids, ...auto])]);
+  }, [id, autoApplied, catalog.data]);
+
+  // Loyalty balance of the customer (this order's own redemption given back when editing).
+  const loyalty = settings.loyalty;
+  const ledger = useQuery({
+    queryKey: ["loyalty", customer?.id],
+    enabled: !!customer && loyalty.enabled,
+    // Balances change when other orders are paid: always read the current one.
+    staleTime: 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("loyalty_transactions").select("points, order_id, kind").eq("customer_id", customer!.id);
+      if (error) throw error;
+      return data as { points: number; order_id: string | null; kind: string }[];
+    },
+  });
+  const pointsAvailable = (ledger.data ?? [])
+    .filter((t) => !(id && t.order_id === id && t.kind === "redeem"))
+    .reduce((sum, t) => sum + t.points, 0);
+  const pointsToRedeem = Math.max(0, Math.min(Math.floor(Number(pointsInput) || 0), pointsAvailable));
 
   const addresses = useQuery({
     queryKey: ["addresses", customer?.id],
@@ -284,6 +316,7 @@ export function OrderEditor() {
           discount_ids: discountIds,
           delivery: rule,
           delivery_fee_override_cents: freeDelivery ? 0 : null,
+          points_to_redeem: loyalty.enabled ? pointsToRedeem : 0,
           now: new Date(),
         },
         catalog.pricingContext,
@@ -295,6 +328,17 @@ export function OrderEditor() {
   const belowMinimum = preview && min_order_cents !== null && preview.subtotal_cents - preview.discount_cents < min_order_cents;
 
   const activeDiscounts = (catalog.data?.discounts ?? []).filter((d) => d.active);
+  // Discounts with a code are only applied by typing it; the rest are chips.
+  const chipDiscounts = activeDiscounts.filter((d) => !d.code || discountIds.includes(d.id));
+  const applyCode = () => {
+    const code = discountCode.trim().toUpperCase();
+    const d = activeDiscounts.find((x) => x.code && x.code.toUpperCase() === code);
+    if (!d) return setCodeError("Código no válido o inactivo.");
+    setDiscountIds((ids) => (ids.includes(d.id) ? ids : [...ids, d.id]));
+    setDiscountCode("");
+    setCodeError(null);
+  };
+  const hasCodes = activeDiscounts.some((d) => d.code);
 
   const save = async () => {
     if (!customer) return setServerError("Selecciona un cliente.");
@@ -322,6 +366,7 @@ export function OrderEditor() {
         items: itemsInput,
         discount_ids: discountIds,
         delivery_fee_override_cents: freeDelivery ? 0 : null,
+        points_to_redeem: loyalty.enabled ? pointsToRedeem : 0,
       });
       let pickupError: string | null = null;
       if (schedulePickup) {
@@ -571,13 +616,33 @@ export function OrderEditor() {
 
             {activeDiscounts.length > 0 && (
               <Card title="Descuentos">
+                {hasCodes && (
+                  <div className="row" style={{ marginBottom: 12 }}>
+                    <input
+                      className="input sm"
+                      placeholder="Código de descuento"
+                      value={discountCode}
+                      onChange={(e) => {
+                        setDiscountCode(e.target.value);
+                        setCodeError(null);
+                      }}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), applyCode())}
+                      aria-label="Código de descuento"
+                    />
+                    <Button variant="tonal" size="sm" onClick={applyCode} disabled={!discountCode.trim()}>
+                      Aplicar
+                    </Button>
+                  </div>
+                )}
+                {codeError && <p className="body-s error-text" style={{ marginTop: 0 }}>{codeError}</p>}
                 <div className="row wrap">
-                  {activeDiscounts.map((d) => (
+                  {chipDiscounts.map((d) => (
                     <Chip
                       key={d.id}
                       on={discountIds.includes(d.id)}
                       onClick={() => setDiscountIds((ids) => (ids.includes(d.id) ? ids.filter((x) => x !== d.id) : [...ids, d.id]))}
                     >
+                      {d.code ? `${d.code} · ` : ""}
                       {d.name} · {d.kind === "percentage" ? `${d.value}%` : money(d.value)}
                     </Chip>
                   ))}
@@ -587,6 +652,49 @@ export function OrderEditor() {
                     No aplican: {preview.rejected_discounts.map((r) => activeDiscounts.find((d) => d.id === r.id)?.name).join(", ")}
                   </p>
                 ) : null}
+              </Card>
+            )}
+
+            {loyalty.enabled && customer && (
+              <Card title="Puntos de lealtad">
+                <div className="col gap-8">
+                  <div className="body-m">
+                    {customer.name.split(" ")[0]} tiene <strong>{pointsAvailable}</strong> puntos
+                    {pointsAvailable > 0 && ` (${money(pointsAvailable * loyalty.point_value_cents)})`}.
+                  </div>
+                  {pointsAvailable > 0 && pointsAvailable >= loyalty.min_redeem_points && (
+                    <div className="row">
+                      <input
+                        className="input sm num"
+                        style={{ maxWidth: 140 }}
+                        type="number"
+                        min="0"
+                        max={pointsAvailable}
+                        placeholder="Puntos a usar"
+                        value={pointsInput}
+                        onChange={(e) => setPointsInput(e.target.value)}
+                        aria-label="Puntos a usar"
+                      />
+                      <Button variant="text" size="sm" onClick={() => setPointsInput(String(pointsAvailable))}>
+                        Usar todos
+                      </Button>
+                    </div>
+                  )}
+                  {pointsAvailable > 0 && pointsAvailable < loyalty.min_redeem_points && (
+                    <span className="body-s muted">Se pueden usar a partir de {loyalty.min_redeem_points} puntos.</span>
+                  )}
+                  {preview?.credit_rejected === "min_points" && (
+                    <span className="body-s error-text">El mínimo para canjear es {loyalty.min_redeem_points} puntos.</span>
+                  )}
+                  {preview && preview.points_redeemed < pointsToRedeem && preview.credit_rejected === null && (
+                    <span className="body-s muted">Se usarán {preview.points_redeemed} puntos (no pueden superar el total de servicios).</span>
+                  )}
+                  {preview && pointsEarned(preview.total_cents, loyalty) > 0 && (
+                    <span className="body-s" style={{ color: "var(--tertiary)" }}>
+                      Ganará {pointsEarned(preview.total_cents, loyalty)} puntos al entregar y pagar.
+                    </span>
+                  )}
+                </div>
               </Card>
             )}
 
@@ -634,9 +742,11 @@ export function OrderEditor() {
                 {id
                   ? "Guardar cambios"
                   : !lines.length
-                    ? bookPickup && fulfillment === "delivery"
-                      ? "Crear y agendar recolección"
-                      : "Crear orden sin servicios"
+                    ? fulfillment === "walk_in"
+                      ? "Crear orden"
+                      : bookPickup
+                        ? "Crear y agendar recolección"
+                        : "Crear orden sin servicios"
                     : `Crear orden${preview ? ` · ${money(preview.total_cents)}` : ""}`}
               </Button>
             </div>

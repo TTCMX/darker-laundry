@@ -327,6 +327,38 @@ describe("delivery fee", () => {
   });
 });
 
+describe("loyalty points (credits stage)", () => {
+  const loyalty = { enabled: true, point_value_cents: 100, min_redeem_points: 10 };
+  const items = [{ product_id: "shirt", quantity: 2 }]; // 9000
+
+  it("redeems points as money off the services, not the delivery fee", () => {
+    const r = quote(input({ items, points_to_redeem: 30, delivery: { fee_cents: 5000, free_over_cents: null } }), ctx({ loyalty }));
+    expect(r.points_redeemed).toBe(30);
+    expect(r.credit_cents).toBe(3000);
+    expect(r.total_cents).toBe(9000 - 3000 + 5000);
+    expect(r.steps.find((s) => s.key === "credits")?.amount_cents).toBe(-3000);
+  });
+
+  it("caps redemption at the remaining services amount", () => {
+    const r = quote(input({ items, points_to_redeem: 500 }), ctx({ loyalty }));
+    expect(r.points_redeemed).toBe(90);
+    expect(r.total_cents).toBe(0);
+  });
+
+  it("applies after discounts", () => {
+    const c = ctx({ loyalty, discounts: [discount({ id: "half", kind: "percentage", value: 50 })] });
+    const r = quote(input({ items, discount_ids: ["half"], points_to_redeem: 100 }), c);
+    expect(r.points_redeemed).toBe(45);
+    expect(r.total_cents).toBe(0);
+  });
+
+  it("rejects below the minimum or when the program is off", () => {
+    expect(quote(input({ items, points_to_redeem: 5 }), ctx({ loyalty })).credit_rejected).toBe("min_points");
+    expect(quote(input({ items, points_to_redeem: 50 }), ctx()).credit_rejected).toBe("disabled");
+    expect(quote(input({ items, points_to_redeem: 50 }), ctx()).total_cents).toBe(9000);
+  });
+});
+
 describe("orders without items", () => {
   it("price to zero, with no delivery fee until items are captured", () => {
     const r = quote(input({ items: [], delivery: { fee_cents: 5000, free_over_cents: null } }), ctx());
@@ -433,7 +465,7 @@ describe("invariants", () => {
       const lineNet = r.lines.reduce((s, l) => s + l.net_cents, 0);
       expect(lineNet).toBe(r.subtotal_cents - r.discount_cents);
       expect(r.applied_discounts.reduce((s, d) => s + d.amount_cents, 0)).toBe(r.discount_cents);
-      expect(r.total_cents).toBe(r.subtotal_cents - r.discount_cents + r.delivery_fee_cents + r.tax_cents);
+      expect(r.total_cents).toBe(r.subtotal_cents - r.discount_cents - r.credit_cents + r.delivery_fee_cents + r.tax_cents);
       const stepsSum = r.steps.filter((s) => s.key !== "total").reduce((s, x) => s + x.amount_cents, 0);
       expect(stepsSum).toBe(r.total_cents);
       expect(r.lines.every((l) => l.net_cents >= 0 && Number.isInteger(l.net_cents))).toBe(true);

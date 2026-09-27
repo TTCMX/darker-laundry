@@ -50,7 +50,7 @@ export function PaymentDialog({
         p_notes: notes || null,
         p_delivery: deliveryId ?? null,
       }),
-    { success: "Pago registrado", invalidate: [["order"], ["orders"], ["dashboard"], ["courier"], ["payments"]] },
+    { success: "Pago registrado", invalidate: [["order"], ["orders"], ["dashboard"], ["courier"], ["payments"], ["loyalty"], ["customer"]] },
   );
   const cents = inputToCents(amount) ?? 0;
 

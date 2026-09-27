@@ -8,8 +8,9 @@ import { whatsappLink } from "../../domain/notifications";
 import { dateOnly, dateTime, money, relative } from "../../lib/format";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
-import type { Address, CustomerOverview, Order } from "../../lib/types";
-import { Button, Card, Chip, Empty, Icon, IconButton, Loading, Stat, initials } from "../../ui/components";
+import type { Address, CustomerOverview, LoyaltyTransaction, Order } from "../../lib/types";
+import { rpc, useAction, useMemberNames } from "../../lib/queries";
+import { Button, Card, Chip, Dialog, Empty, Icon, IconButton, Loading, Stat, TextField, initials } from "../../ui/components";
 import { CustomerStatusBadge, OrderStatusBadge, PaymentBadge } from "../shared";
 import { AddressDialog, CustomerDialog, formatAddress, mapsUrl } from "./CustomerDialogs";
 
@@ -110,7 +111,7 @@ export function CustomersList() {
 
 export function CustomerDetail() {
   const { id = "" } = useParams();
-  const { can } = useTenant();
+  const { can, settings } = useTenant();
   const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [address, setAddress] = useState<Address | "new" | null>(null);
@@ -238,6 +239,7 @@ export function CustomerDetail() {
             )}
           </Card>
         </div>
+        {(settings.loyalty.enabled || c.points_balance !== 0) && <LoyaltyCard customerId={c.id} balance={c.points_balance} onChanged={() => q.refetch()} />}
       </div>
       <CustomerDialog open={editing} customer={c} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); q.refetch(); }} />
       <AddressDialog
@@ -251,5 +253,112 @@ export function CustomerDetail() {
         }}
       />
     </Page>
+  );
+}
+
+const LOYALTY_KIND: Record<string, string> = { earn: "Ganados", redeem: "Usados", adjust: "Ajuste" };
+
+function LoyaltyCard({ customerId, balance, onChanged }: { customerId: string; balance: number; onChanged: () => void }) {
+  const { can, settings } = useTenant();
+  const name = useMemberNames();
+  const [adjusting, setAdjusting] = useState(false);
+  const [points, setPoints] = useState("");
+  const [note, setNote] = useState("");
+  const ledger = useQuery({
+    queryKey: ["loyalty", customerId, "ledger"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("loyalty_transactions")
+        .select("*, orders(number)")
+        .eq("customer_id", customerId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data as (LoyaltyTransaction & { orders: { number: number } | null })[];
+    },
+  });
+  const adjust = useAction(() => rpc("adjust_loyalty_points", { p_customer: customerId, p_points: Math.trunc(Number(points)), p_note: note }), {
+    success: "Puntos ajustados",
+    invalidate: [["loyalty"], ["customer"], ["customers"]],
+    dispatch: false,
+  });
+  return (
+    <Card
+      title={
+        <div className="col gap-4">
+          <h3>Puntos de lealtad</h3>
+          <span className="body-s muted">
+            Saldo {balance} puntos
+            {settings.loyalty.point_value_cents > 0 && ` · vale ${money(balance * settings.loyalty.point_value_cents)}`}
+          </span>
+        </div>
+      }
+      action={
+        can("loyalty.manage") && (
+          <Button variant="text" icon="tune" onClick={() => setAdjusting(true)}>
+            Ajustar
+          </Button>
+        )
+      }
+      variant="flush"
+    >
+      {!ledger.data?.length ? (
+        <Empty icon="loyalty" title="Sin movimientos" />
+      ) : (
+        <div className="list">
+          {ledger.data.map((t) => (
+            <div key={t.id} className="list-item">
+              <div className="grow">
+                <div className="headline">
+                  {LOYALTY_KIND[t.kind]}
+                  {t.orders ? ` · orden #${t.orders.number}` : ""}
+                </div>
+                <div className="supporting">
+                  {dateTime(t.created_at)}
+                  {t.note ? ` · ${t.note}` : ""}
+                  {t.created_by ? ` · ${name(t.created_by)}` : ""}
+                </div>
+              </div>
+              <span className="title-s num" style={{ color: t.points > 0 ? "var(--tertiary)" : "var(--error)" }}>
+                {t.points > 0 ? `+${t.points}` : t.points}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <Dialog
+        open={adjusting}
+        title="Ajustar puntos"
+        onClose={() => setAdjusting(false)}
+        actions={
+          <>
+            <Button variant="text" onClick={() => setAdjusting(false)}>
+              Cancelar
+            </Button>
+            <Button
+              loading={adjust.isPending}
+              disabled={!Number(points) || !note.trim()}
+              onClick={() =>
+                adjust.mutate(undefined, {
+                  onSuccess: () => {
+                    setAdjusting(false);
+                    setPoints("");
+                    setNote("");
+                    onChanged();
+                  },
+                })
+              }
+            >
+              Guardar
+            </Button>
+          </>
+        }
+      >
+        <div className="col gap-16">
+          <TextField label="Puntos" type="number" value={points} onChange={(e) => setPoints(e.target.value)} hint="Positivo para regalar, negativo para quitar" />
+          <TextField label="Motivo" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Cortesía, corrección, saldo del sistema anterior…" />
+        </div>
+      </Dialog>
+    </Card>
   );
 }

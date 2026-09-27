@@ -22,7 +22,9 @@ const block = (start: string) => {
 
 describe("database ↔ domain parity", () => {
   it("permission catalog", () => {
-    const seeded = [...block("insert into public.permissions").matchAll(/\('([a-z_.]+)',/g)].map((m) => m[1]);
+    // Every migration that adds permissions (the catalog grows over time).
+    const blocks = sql.split("insert into public.permissions").slice(1).map((b) => b.slice(0, b.indexOf(";")));
+    const seeded = blocks.flatMap((b) => [...b.matchAll(/\('([a-z_.]+)',/g)].map((m) => m[1]));
     expect([...seeded].sort()).toEqual([...PERMISSION_CODES].sort());
   });
 

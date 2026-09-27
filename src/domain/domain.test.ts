@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { customerStatus } from "./customers.js";
+import { DEFAULT_LOYALTY, pointsEarned } from "./loyalty.js";
 import { allocate, formatMoney } from "./money.js";
 import { canTransition } from "./orders.js";
 import { derivePaymentState, type LedgerEntry } from "./payments.js";
@@ -135,6 +136,22 @@ describe("customer status", () => {
     expect(customerStatus(5, daysAgo(90), now)).toBe("inactive");
     expect(customerStatus(5, daysAgo(200), now)).toBe("churned");
     expect(customerStatus(5, daysAgo(10), now, { active_days: 7, at_risk_days: 14, churned_days: 21 })).toBe("at_risk");
+  });
+});
+
+describe("loyalty earning", () => {
+  const base = { ...DEFAULT_LOYALTY, enabled: true };
+  // Same cases as supabase/tests/060_loyalty.sql.
+  it("amount mode: points per step", () => {
+    expect(pointsEarned(25_000, { ...base, points_per_step: 1, step_cents: 1000 })).toBe(25);
+    expect(pointsEarned(999, { ...base, points_per_step: 1, step_cents: 1000 })).toBe(0);
+    expect(pointsEarned(10_000, { ...base, points_per_step: 5, step_cents: 5000 })).toBe(10);
+  });
+  it("orders mode, minimums and disabled program", () => {
+    expect(pointsEarned(100, { ...base, earn_mode: "orders", points_per_order: 10 })).toBe(10);
+    expect(pointsEarned(5000, { ...base, min_order_cents: 10_000 })).toBe(0);
+    expect(pointsEarned(50_000, DEFAULT_LOYALTY)).toBe(0);
+    expect(pointsEarned(0, base)).toBe(0);
   });
 });
 

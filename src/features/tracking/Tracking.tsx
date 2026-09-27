@@ -33,6 +33,7 @@ interface PublicOrder {
   production: { name: string; status: string; completed_at: string | null }[];
   deliveries: { type: "pickup" | "delivery"; status: DeliveryStatus; date: string; window: string | null; completed_at: string | null }[];
   online_payment: boolean;
+  loyalty: { points_earned: number; points_redeemed: number; balance: number; point_value_cents: number } | null;
 }
 
 export function TrackingPage() {
@@ -226,6 +227,27 @@ export function TrackingPage() {
             </div>
           </div>
         </Card>
+        )}
+
+        {o.loyalty && (o.loyalty.balance > 0 || o.loyalty.points_earned > 0 || o.loyalty.points_redeemed > 0) && (
+          <Card>
+            <div className="row gap-12">
+              <Icon name="loyalty" size="lg" />
+              <div className="col gap-4">
+                {o.loyalty.points_earned > 0 && (
+                  <div className="title-s">Ganaste {o.loyalty.points_earned} puntos con esta orden</div>
+                )}
+                {o.loyalty.points_redeemed > 0 && <div className="body-m">Usaste {o.loyalty.points_redeemed} puntos.</div>}
+                {o.loyalty.points_earned === 0 && !["delivered", "cancelled"].includes(o.status) && (
+                  <div className="body-m">Ganarás puntos cuando recibas y pagues tu orden.</div>
+                )}
+                <div className="body-m muted">
+                  Tienes {o.loyalty.balance} puntos
+                  {o.loyalty.point_value_cents > 0 && o.loyalty.balance > 0 && ` (${money(o.loyalty.balance * o.loyalty.point_value_cents)} para tu próxima orden)`}.
+                </div>
+              </div>
+            </div>
+          </Card>
         )}
 
         {o.notes && <Banner icon="sticky_note_2">{o.notes}</Banner>}

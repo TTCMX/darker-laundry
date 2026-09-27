@@ -58,6 +58,7 @@ export interface DiscountRow {
   ends_at: string | null;
   usage_limit: number | null;
   active: boolean;
+  auto_apply: boolean;
 }
 
 export interface Zone {
@@ -93,6 +94,18 @@ export interface CustomerOverview extends Customer {
   first_order_at: string | null;
   balance_due_cents: number;
   status: "new" | "active" | "at_risk" | "inactive" | "churned";
+  points_balance: number;
+}
+
+export interface LoyaltyTransaction {
+  id: string;
+  customer_id: string;
+  order_id: string | null;
+  kind: "earn" | "redeem" | "adjust";
+  points: number;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface Address {
@@ -138,6 +151,7 @@ export interface Order {
   amount_paid_cents: number;
   balance_cents: number;
   payment_status: OrderPaymentStatus;
+  points_redeemed: number;
   pricing: PricingResult | null;
   created_by: string | null;
   created_at: string;
