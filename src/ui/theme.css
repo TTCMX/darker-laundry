@@ -759,3 +759,11 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .content { padding: 0; }
   body { background: #fff; }
 }
+
+/* ── Photos ─────────────────────────────────────────────── */
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.photo-tile { position: relative; aspect-ratio: 1; border: none; padding: 0; border-radius: var(--radius-md); overflow: hidden; background: var(--surface-container-high); cursor: pointer; display: grid; place-items: center; }
+.photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-tile .photo-label { position: absolute; left: 6px; bottom: 6px; max-width: calc(100% - 12px); padding: 2px 8px; border-radius: var(--radius-full); background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lightbox { width: min(960px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--surface-container-high); border-radius: var(--radius-lg); padding: 12px; }
+.lightbox img { max-width: 100%; max-height: calc(100dvh - 160px); object-fit: contain; border-radius: var(--radius-sm); align-self: center; }

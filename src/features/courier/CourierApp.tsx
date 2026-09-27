@@ -12,6 +12,7 @@ import type { Delivery, Route } from "../../lib/types";
 import { Badge, Banner, Button, Dialog, Empty, Icon, Loading, TextArea, useToast } from "../../ui/components";
 import { formatAddress, mapsUrl } from "../customers/CustomerDialogs";
 import { IssueDialog, PaymentDialog } from "../orders/OrderDialogs";
+import { AddPhotoButton } from "../orders/OrderPhotos";
 import { DELIVERY_TYPE_LABEL, DeliveryStatusBadge } from "../shared";
 
 type CourierStop = Delivery & {
@@ -195,9 +196,12 @@ export function CourierApp() {
                   No se pudo
                 </Button>
               </div>
-              <Button variant="text" icon="report" onClick={() => setReporting(s)}>
-                Reportar problema
-              </Button>
+              <div className="row wrap">
+                <AddPhotoButton orderId={s.orders.id} deliveryId={s.id} label="Foto" />
+                <Button variant="text" icon="report" onClick={() => setReporting(s)}>
+                  Reportar problema
+                </Button>
+              </div>
             </article>
           );
         })}
