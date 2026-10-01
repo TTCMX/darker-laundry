@@ -5,6 +5,7 @@ import { useAuth, useTenant } from "../lib/session";
 import { Button, Empty, Loading } from "../ui/components";
 import { ForgotPage, InvitePage, LoginPage, OnboardingPage, ResetPage, SignupPage } from "../features/auth/AuthPages";
 import { NAV, Shell } from "./Shell";
+import { ReadOnlyPage, useBlockedByPlan } from "../features/plan/Plan";
 
 const AnalyticsPage = lazy(() => import("../features/analytics/Analytics").then((m) => ({ default: m.AnalyticsPage })));
 const AuditPage = lazy(() => import("../features/audit/Audit").then((m) => ({ default: m.AuditPage })));
@@ -36,6 +37,8 @@ function RequireTenant({ children }: { children: ReactNode }) {
 
 function Guard({ perms, children }: { perms: Permission[]; children: ReactNode }) {
   const { can } = useTenant();
+  const blocked = useBlockedByPlan(...perms);
+  if (!can(...perms) && blocked) return <ReadOnlyPage onHome={() => (window.location.href = "/")} />;
   if (!can(...perms)) {
     return (
       <div className="center-page">

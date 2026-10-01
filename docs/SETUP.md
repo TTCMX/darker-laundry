@@ -169,6 +169,26 @@ Requiere la migración `20260928000001_analytics.sql`.
 
 Se aceptan CSV separados por coma, punto y coma o tabulador, en UTF-8 o en la codificación de Excel en Windows. Los .xls antiguos hay que guardarlos antes como .xlsx.
 
+## 5e. Prueba gratis (primeros testers)
+
+Requiere la migración `20261001000001_free_trial.sql`.
+
+- Cada negocio tiene **3 meses gratis con todas las funciones**, contados desde que se registra. Los negocios que ya existían reciben 3 meses desde su fecha de registro.
+- El dueño ve los días restantes en **Ajustes → Plan** y un aviso en todas las pantallas cuando faltan 15 días o menos.
+- Al terminar, el negocio queda en **solo lectura**: se puede consultar, ver Análisis y exportar, y el dueño puede cambiar Ajustes y Equipo, pero no se crean ni modifican órdenes, clientes, pagos, producción ni entregas. Lo bloquea la base de datos, no solo la pantalla. La página de seguimiento de los clientes y los pagos en línea de órdenes existentes siguen funcionando.
+- Opcional: `VITE_SUPPORT_EMAIL` en Vercel para mostrar un correo de contacto en esos avisos.
+
+Administración (en el SQL Editor de Supabase; el `slug` es la dirección del negocio):
+
+```sql
+-- Ver negocios y cuándo termina su prueba
+select name, slug, plan, plan_status, created_at, trial_ends_at from public.tenants order by created_at desc;
+-- Extender la prueba un mes
+update public.tenants set trial_ends_at = trial_ends_at + interval '1 month' where slug = 'mi-lavanderia';
+-- Dejar un negocio sin límite (por ejemplo, tus propias lavanderías)
+update public.tenants set plan = 'internal' where slug = 'mi-lavanderia';
+```
+
 ## 6. Desarrollo local
 
 Con Docker instalado:

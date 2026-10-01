@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { Permission } from "../domain/permissions";
 import { useAuth, useTenant } from "../lib/session";
 import { Icon, IconButton, Menu, initials } from "../ui/components";
+import { PlanNotice } from "../features/plan/Plan";
 
 export interface NavItem {
   to: string;
@@ -212,7 +213,10 @@ export function Page({
         <div className="row">{actions}</div>
         <AccountMenu />
       </header>
-      <main className={`content${narrow ? " narrow" : ""}`}>{children}</main>
+      <main className={`content${narrow ? " narrow" : ""}`}>
+        <PlanNotice />
+        {children}
+      </main>
     </>
   );
 }

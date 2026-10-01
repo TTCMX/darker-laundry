@@ -922,3 +922,4 @@ html.scroll-locked, html.scroll-locked body { overflow: hidden; }
   .map-head { display: none; }
   .map-head + .map-row { border-top: 0; }
 }
+.content > .banner:first-child { margin-bottom: 16px; }
