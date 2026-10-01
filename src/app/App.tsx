@@ -5,7 +5,9 @@ import { useAuth, useTenant } from "../lib/session";
 import { Button, Empty, Loading } from "../ui/components";
 import { ForgotPage, InvitePage, LoginPage, OnboardingPage, ResetPage, SignupPage } from "../features/auth/AuthPages";
 import { NAV, Shell } from "./Shell";
+import { ReadOnlyPage, useBlockedByPlan } from "../features/plan/Plan";
 
+const AnalyticsPage = lazy(() => import("../features/analytics/Analytics").then((m) => ({ default: m.AnalyticsPage })));
 const AuditPage = lazy(() => import("../features/audit/Audit").then((m) => ({ default: m.AuditPage })));
 const CatalogPage = lazy(() => import("../features/catalog/Catalog").then((m) => ({ default: m.CatalogPage })));
 const CourierApp = lazy(() => import("../features/courier/CourierApp").then((m) => ({ default: m.CourierApp })));
@@ -35,6 +37,8 @@ function RequireTenant({ children }: { children: ReactNode }) {
 
 function Guard({ perms, children }: { perms: Permission[]; children: ReactNode }) {
   const { can } = useTenant();
+  const blocked = useBlockedByPlan(...perms);
+  if (!can(...perms) && blocked) return <ReadOnlyPage onHome={() => (window.location.href = "/")} />;
   if (!can(...perms)) {
     return (
       <div className="center-page">
@@ -92,6 +96,7 @@ export function App() {
         >
           <Route index element={<Home />} />
           <Route path="dashboard" element={<Guard perms={["dashboard.view"]}><Dashboard /></Guard>} />
+          <Route path="analytics/:tab?" element={<Guard perms={["reports.view"]}><AnalyticsPage /></Guard>} />
           <Route path="orders" element={<Guard perms={["orders.view"]}><OrdersList /></Guard>} />
           <Route path="orders/new" element={<Guard perms={["orders.create"]}><OrderEditor /></Guard>} />
           <Route path="orders/:id" element={<Guard perms={["orders.view", "production.view", "delivery.view", "payments.view"]}><OrderDetail /></Guard>} />

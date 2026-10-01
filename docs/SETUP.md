@@ -141,6 +141,54 @@ No requiere configuración en el servidor. Usa el mismo protocolo que la app int
 3. Navegadores compatibles: Chrome o Edge en Android, Windows, macOS y ChromeOS. Safari en iPhone no permite Bluetooth; ahí puedes usar el navegador Bluefy o **⋮ → Imprimir (navegador)**, que imprime el mismo ticket en cualquier impresora instalada (USB, Wi‑Fi o PDF).
 4. En **Ajustes → Tickets** se configura el contenido: encabezado, pie, link o QR de seguimiento, puntos de lealtad y espacio para anotar a mano. Los datos del negocio (nombre, RFC, dirección y teléfono) salen de **Ajustes → Negocio**.
 
+## 5c. Análisis (back office)
+
+Menú **Análisis** (dueños y gerentes; permiso `reports.view`, que se puede dar a otros roles en **Equipo → Roles**). Pestañas:
+
+- **Ventas:** ventas, órdenes, ticket promedio, cobrado, clientes nuevos, por cobrar, descuentos y cancelaciones; gráfica por día/semana/mes, mostrador vs. domicilio, métodos de pago y horas pico.
+- **Recibos** y **Pagos:** todos los movimientos del periodo con filtros y totales.
+- **Servicios:** servicios y categorías más vendidos, descuentos aplicados y costo del programa de lealtad.
+- **Clientes:** compradores, nuevos, retención, mejores clientes y clientes valiosos que dejaron de venir.
+- **Empleados:** órdenes, ventas y cobros registrados por persona; fases completadas y tiempos contra lo estimado; paradas del courier; incidencias.
+- **Operación:** entregas a tiempo, tiempos de proceso, recolecciones/entregas, visitas fallidas y cancelaciones.
+- **Incidencias:** por tipo, fase, severidad y responsable, con detalle.
+
+Cada periodo se compara con el anterior de la misma duración, el periodo va en el link (se puede compartir) y cada tabla se descarga en CSV para Excel o Google Sheets. Las ventas cuentan cuando se crea la orden (sin canceladas); lo cobrado cuenta cuando se aplica el pago.
+
+Requiere la migración `20260928000001_analytics.sql`.
+
+## 5d. Importar clientes de otro sistema
+
+**Clientes → Importar** (permiso para editar clientes). Requiere la migración `20260928000002_customer_import.sql`.
+
+1. Exporta tus clientes del sistema anterior como Excel (.xlsx) o CSV, con los títulos de las columnas en la primera fila. Si no sabes qué formato usar, descarga la plantilla desde la misma ventana.
+2. La app reconoce las columnas (Nombre, Apellido, Teléfono/Celular, Correo, Dirección, Colonia, CP, Ciudad, Referencias, Notas, Etiquetas, Puntos, Fecha de alta). Puedes cambiar cualquiera o marcarla como "No importar". Si nombre y apellido vienen separados, asigna las dos a Nombre.
+3. **Revisar** muestra fila por fila qué pasará, sin guardar nada: nuevos, repetidos (mismo teléfono o correo, aunque esté escrito distinto) y errores (sin nombre, teléfono o correo inválido). Puedes descargar las filas a revisar, corregirlas y volver a importar el archivo: lo ya importado se detecta como repetido.
+4. Si el cliente ya existe puedes dejarlo como está o completar sus datos vacíos (nunca se reemplaza lo capturado).
+5. Los puntos de lealtad se cargan como saldo inicial solo si quien importa puede ajustar puntos y el cliente no tenía puntos.
+
+Se aceptan CSV separados por coma, punto y coma o tabulador, en UTF-8 o en la codificación de Excel en Windows. Los .xls antiguos hay que guardarlos antes como .xlsx.
+
+## 5e. Prueba gratis (primeros testers)
+
+Requiere la migración `20261001000001_free_trial.sql`.
+
+- Cada negocio tiene **3 meses gratis con todas las funciones**, contados desde que se registra. Los negocios que ya existían reciben 3 meses desde su fecha de registro.
+- El dueño ve los días restantes en **Ajustes → Plan** y un aviso en todas las pantallas cuando faltan 15 días o menos.
+- Al terminar, el negocio queda en **solo lectura**: se puede consultar, ver Análisis y exportar, y el dueño puede cambiar Ajustes y Equipo, pero no se crean ni modifican órdenes, clientes, pagos, producción ni entregas. Lo bloquea la base de datos, no solo la pantalla. La página de seguimiento de los clientes y los pagos en línea de órdenes existentes siguen funcionando.
+- Opcional: `VITE_SUPPORT_EMAIL` en Vercel para mostrar un correo de contacto en esos avisos.
+
+Administración (en el SQL Editor de Supabase; el `slug` es la dirección del negocio):
+
+```sql
+-- Ver negocios y cuándo termina su prueba
+select name, slug, plan, plan_status, created_at, trial_ends_at from public.tenants order by created_at desc;
+-- Extender la prueba un mes
+update public.tenants set trial_ends_at = trial_ends_at + interval '1 month' where slug = 'mi-lavanderia';
+-- Dejar un negocio sin límite (por ejemplo, tus propias lavanderías)
+update public.tenants set plan = 'internal' where slug = 'mi-lavanderia';
+```
+
 ## 6. Desarrollo local
 
 Con Docker instalado:

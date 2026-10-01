@@ -2,6 +2,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Permission } from "../domain/permissions";
+import { allowedReadOnly, type Access } from "../domain/plan";
 import { resolveSettings, type TenantSettings } from "../domain/settings";
 import { setFormatContext } from "./format";
 import { supabase } from "./supabase";
@@ -64,6 +65,11 @@ export interface Membership {
   role_home: "backoffice" | "courier";
   is_owner: boolean;
   permissions: Permission[];
+  plan: string;
+  plan_status: string;
+  created_at: string | null;
+  trial_ends_at: string | null;
+  access: Access;
 }
 
 interface TenantState {
@@ -116,7 +122,11 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     if (tenant) setFormatContext({ currency: tenant.currency, timezone: tenant.timezone, locale: settings.locale });
   }, [tenant, settings.locale]);
 
-  const perms = useMemo(() => new Set(tenant?.permissions ?? []), [tenant]);
+  // Read-only business (trial over): only what the database still allows.
+  const perms = useMemo(
+    () => new Set((tenant?.permissions ?? []).filter((p) => tenant?.access !== "read_only" || allowedReadOnly(p))),
+    [tenant],
+  );
   const can = useCallback((...anyOf: Permission[]) => anyOf.some((p) => perms.has(p)), [perms]);
 
   const value: TenantState = {

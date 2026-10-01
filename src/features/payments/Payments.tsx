@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Page } from "../../app/Shell";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "../../domain/payments";
-import { dateTime, money, todayISO } from "../../lib/format";
+import { dateTime, money, todayISO, zonedStart } from "../../lib/format";
 import { useMemberNames } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
@@ -105,13 +105,4 @@ export function PaymentsPage() {
       </div>
     </Page>
   );
-}
-
-/** ISO instant of local midnight (plus `addDays`) in the given time zone. */
-function zonedStart(day: string, timeZone = "UTC", addDays = 0) {
-  const base = new Date(`${day}T00:00:00Z`);
-  base.setUTCDate(base.getUTCDate() + addDays);
-  const asLocal = new Date(base.toLocaleString("en-US", { timeZone }));
-  const offset = asLocal.getTime() - new Date(base.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
-  return new Date(base.getTime() - offset).toISOString();
 }

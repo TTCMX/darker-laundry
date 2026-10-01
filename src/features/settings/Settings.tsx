@@ -15,13 +15,14 @@ import type { PaperWidth } from "../../lib/printing/escpos";
 import { sampleReceipt } from "../../lib/printing/sample";
 import { ReceiptPreview } from "../orders/PrintReceipt";
 import { PrinterCard } from "./PrinterCard";
+import { PlanCard } from "../plan/Plan";
 import { useRoles, useWorkflows } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
 import type { TemplateRow, TenantRow, WorkflowStep } from "../../lib/types";
 import { Badge, Banner, Button, Card, Checkbox, Chip, Dialog, Icon, IconButton, Loading, Segmented, Select, Tabs, TextArea, TextField, useToast } from "../../ui/components";
 
-type TabKey = "business" | "operations" | "delivery" | "pricing" | "loyalty" | "receipts" | "payments" | "notifications";
+type TabKey = "plan" | "business" | "operations" | "delivery" | "pricing" | "loyalty" | "receipts" | "payments" | "notifications";
 
 export function SettingsPage() {
   const { tenantId } = useTenant();
@@ -41,7 +42,8 @@ export function SettingsPage() {
         {params.get("welcome") && (
           <Banner tone="success" icon="celebration">
             <div className="title-s">¡Tu lavandería está lista!</div>
-            Siguientes pasos: revisa tu flujo de producción en <b>Operación</b>, crea tus servicios en <b>Catálogo</b> e invita a tu equipo en <b>Equipo</b>.
+            Tienes <b>3 meses de prueba gratis con todas las funciones</b>. Siguientes pasos: revisa tu flujo de producción en <b>Operación</b>, crea tus
+            servicios en <b>Catálogo</b> e invita a tu equipo en <b>Equipo</b>.
           </Banner>
         )}
         <Tabs
@@ -56,10 +58,13 @@ export function SettingsPage() {
             { value: "receipts", label: "Tickets" },
             { value: "payments", label: "Pagos" },
             { value: "notifications", label: "Notificaciones" },
+            { value: "plan", label: "Plan" },
           ]}
         />
         {!q.data ? (
           <Loading />
+        ) : tab === "plan" ? (
+          <PlanCard />
         ) : tab === "business" ? (
           <Business row={q.data} />
         ) : tab === "operations" ? (

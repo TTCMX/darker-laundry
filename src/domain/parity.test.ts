@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ORDER_STATUSES, ORDER_TRANSITIONS } from "./orders.js";
 import { PERMISSION_CODES } from "./permissions.js";
+import { READ_ONLY_EXTRA, allowedReadOnly } from "./plan.js";
 import { NOTIFICATION_EVENTS } from "./templates.js";
 
 const dir = join(__dirname, "../../supabase/migrations");
@@ -28,8 +29,19 @@ describe("database ↔ domain parity", () => {
     expect([...seeded].sort()).toEqual([...PERMISSION_CODES].sort());
   });
 
+  it("permissions allowed in read-only mode (trial over)", () => {
+    const fn = block("create or replace function app.allowed_read_only");
+    expect(fn).toContain("like '%.view'");
+    const extra = [...(/in \(([^)]*)\)/.exec(fn)?.[1] ?? "").matchAll(/'([a-z_.]+)'/g)].map((m) => m[1]);
+    expect(extra.sort()).toEqual([...READ_ONLY_EXTRA].sort());
+    expect(PERMISSION_CODES.filter(allowedReadOnly)).toContain("reports.view");
+    expect(allowedReadOnly("orders.create")).toBe(false);
+  });
+
   it("order transitions", () => {
-    const pairs = [...block("insert into app.order_transitions").matchAll(/\('([a-z_]+)', '([a-z_]+)'\)/g)].map(
+    // Every migration that adds transitions.
+    const inserts = sql.split("insert into app.order_transitions").slice(1).map((b) => b.slice(0, b.indexOf(";"))).join("\n");
+    const pairs = [...inserts.matchAll(/\('([a-z_]+)', '([a-z_]+)'\)/g)].map(
       (m) => `${m[1]}>${m[2]}`,
     );
     const domain = ORDER_STATUSES.flatMap((from) => ORDER_TRANSITIONS[from].map((to) => `${from}>${to}`));

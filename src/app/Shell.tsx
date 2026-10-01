@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { Permission } from "../domain/permissions";
 import { useAuth, useTenant } from "../lib/session";
 import { Icon, IconButton, Menu, initials } from "../ui/components";
+import { PlanNotice } from "../features/plan/Plan";
 
 export interface NavItem {
   to: string;
@@ -13,6 +14,7 @@ export interface NavItem {
 
 export const NAV: NavItem[] = [
   { to: "/dashboard", label: "Inicio", icon: "space_dashboard", perms: ["dashboard.view"] },
+  { to: "/analytics", label: "Análisis", icon: "monitoring", perms: ["reports.view"] },
   { to: "/orders", label: "Órdenes", icon: "receipt_long", perms: ["orders.view"] },
   { to: "/production", label: "Producción", icon: "local_laundry_service", perms: ["production.view"] },
   { to: "/delivery", label: "Entregas", icon: "local_shipping", perms: ["delivery.view", "delivery.manage"] },
@@ -37,6 +39,41 @@ function RailItem({ item }: { item: NavItem }) {
       </span>
       <span>{item.label}</span>
     </NavLink>
+  );
+}
+
+/** Bottom bar overflow: the sections that don't fit in five slots. */
+function MoreItem({ items }: { items: NavItem[] }) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const on = items.some((i) => pathname.startsWith(i.to));
+  return (
+    <Menu
+      up
+      className="more-item"
+      trigger={(toggle) => (
+        <button type="button" className={`rail-item${on ? " on" : ""}`} onClick={toggle} aria-label="Más secciones">
+          <span className="pill">
+            <Icon name="menu" />
+          </span>
+          <span>Más</span>
+        </button>
+      )}
+    >
+      {(close) =>
+        items.map((i) => (
+          <button
+            key={i.to}
+            onClick={() => {
+              close();
+              navigate(i.to);
+            }}
+          >
+            <Icon name={i.icon} /> {i.label}
+          </button>
+        ))
+      }
+    </Menu>
   );
 }
 
@@ -133,9 +170,10 @@ export function Shell() {
         <Outlet />
       </div>
       <nav className="bottom-nav" aria-label="Principal">
-        {nav.slice(0, 5).map((n) => (
+        {(nav.length > 5 ? nav.slice(0, 4) : nav).map((n) => (
           <RailItem key={n.to} item={n} />
         ))}
+        {nav.length > 5 && <MoreItem items={nav.slice(4)} />}
       </nav>
     </div>
   );
@@ -175,7 +213,10 @@ export function Page({
         <div className="row">{actions}</div>
         <AccountMenu />
       </header>
-      <main className={`content${narrow ? " narrow" : ""}`}>{children}</main>
+      <main className={`content${narrow ? " narrow" : ""}`}>
+        <PlanNotice />
+        {children}
+      </main>
     </>
   );
 }

@@ -32,7 +32,7 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
 
 export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   created: ["scheduled", "picked_up", "in_production", "cancelled"],
-  scheduled: ["picked_up", "cancelled"],
+  scheduled: ["picked_up", "in_production", "cancelled"],
   picked_up: ["in_production", "cancelled"],
   in_production: ["ready", "cancelled"],
   ready: ["out_for_delivery", "delivered", "in_production"],

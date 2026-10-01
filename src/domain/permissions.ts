@@ -5,6 +5,7 @@
 
 export const PERMISSIONS = {
   "dashboard.view": "Ver dashboard",
+  "reports.view": "Ver análisis y reportes",
   "orders.view": "Ver órdenes",
   "orders.create": "Crear órdenes",
   "orders.edit": "Editar órdenes y cambiar estado",
@@ -38,6 +39,7 @@ export const PERMISSION_CODES = Object.keys(PERMISSIONS) as Permission[];
 
 export const PERMISSION_GROUPS: { label: string; prefix: string }[] = [
   { label: "Dashboard", prefix: "dashboard." },
+  { label: "Dashboard", prefix: "reports." },
   { label: "Órdenes", prefix: "orders." },
   { label: "Clientes", prefix: "customers." },
   { label: "Producción", prefix: "production." },

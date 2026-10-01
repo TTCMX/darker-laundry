@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ReadOnlyPage, useBlockedByPlan } from "../plan/Plan";
 import { AccountMenu } from "../../app/Shell";
 import type { OrderStatus } from "../../domain/orders";
 import { whatsappLink } from "../../domain/notifications";
@@ -74,8 +75,10 @@ export function CourierApp() {
       }),
     { invalidate: [["courier"], ["deliveries"], ["order"], ["orders"], ["dashboard"]] },
   );
+  const blockedByPlan = useBlockedByPlan("delivery.execute");
   const startRoute = useAction((id: string) => rpc("start_route", { p_route: id }), { invalidate: [["courier"], ["deliveries"]], dispatch: false });
 
+  if (!can("delivery.execute") && blockedByPlan) return <ReadOnlyPage onHome={() => navigate("/")} />;
   if (!can("delivery.execute")) {
     return (
       <div className="center-page">

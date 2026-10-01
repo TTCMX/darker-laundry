@@ -259,6 +259,22 @@ export function Tabs<T extends string>({ value, tabs, onChange }: { value: T; ta
   );
 }
 
+// Page scroll is locked while at least one dialog is open. A counter (not
+// "remember the previous value") so stacked dialogs, re-renders and closing in
+// any order always give the scroll back when the last one closes.
+let scrollLocks = 0;
+export function lockScroll(): () => void {
+  scrollLocks += 1;
+  document.documentElement.classList.add("scroll-locked");
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    scrollLocks = Math.max(0, scrollLocks - 1);
+    if (scrollLocks === 0) document.documentElement.classList.remove("scroll-locked");
+  };
+}
+
 export function Dialog({
   open,
   title,
@@ -274,17 +290,19 @@ export function Dialog({
   actions?: ReactNode;
   wide?: boolean;
 }) {
+  // Latest onClose without re-running the effect on every render.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && closeRef.current();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockScroll();
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
+      unlock();
     };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return createPortal(
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -298,7 +316,18 @@ export function Dialog({
   );
 }
 
-export function Menu({ trigger, children }: { trigger: (open: () => void) => ReactNode; children: (close: () => void) => ReactNode }) {
+export function Menu({
+  trigger,
+  children,
+  up,
+  className,
+}: {
+  trigger: (open: () => void) => ReactNode;
+  children: (close: () => void) => ReactNode;
+  /** Open above the trigger (e.g. from a bottom bar). */
+  up?: boolean;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -310,10 +339,10 @@ export function Menu({ trigger, children }: { trigger: (open: () => void) => Rea
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div ref={ref} className={className} style={{ position: "relative" }}>
       {trigger(() => setOpen((v) => !v))}
       {open && (
-        <div className="menu" style={{ right: 0, top: "100%" }}>
+        <div className="menu" style={up ? { right: 0, bottom: "100%" } : { right: 0, top: "100%" }}>
           {children(() => setOpen(false))}
         </div>
       )}

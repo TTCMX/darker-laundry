@@ -78,3 +78,12 @@ export const inputToCents = (v: string) => {
   const n = Number(String(v).replace(/[^0-9.]/g, ""));
   return Number.isFinite(n) && v !== "" ? Math.round(n * 100) : null;
 };
+
+/** ISO instant of local midnight (plus `addDays`) in the given time zone. */
+export function zonedStart(day: string, timeZone = "UTC", addDays = 0) {
+  const base = new Date(`${day}T00:00:00Z`);
+  base.setUTCDate(base.getUTCDate() + addDays);
+  const asLocal = new Date(base.toLocaleString("en-US", { timeZone }));
+  const offset = asLocal.getTime() - new Date(base.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
+  return new Date(base.getTime() - offset).toISOString();
+}
