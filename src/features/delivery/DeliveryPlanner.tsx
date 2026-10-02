@@ -27,7 +27,7 @@ export function DeliveryPlanner() {
   const q = useQuery({
     queryKey: ["deliveries", tenantId, day],
     queryFn: async () => {
-      const [stops, routes, unscheduled] = await Promise.all([
+      const [stops, routes, unscheduled, elsewhere] = await Promise.all([
         supabase
           .from("deliveries")
           .select("*, orders!inner(id, number, status, balance_cents, customers(name, phone))")
@@ -45,18 +45,37 @@ export function DeliveryPlanner() {
           .eq("fulfillment", "delivery")
           .in("status", ["created", "ready"])
           .limit(100),
+        // Ready home deliveries scheduled for another day and not on a route yet:
+        // a route can take them whatever their day.
+        supabase
+          .from("deliveries")
+          .select("*, orders!inner(id, number, status, balance_cents, customers(name, phone))")
+          .eq("tenant_id", tenantId)
+          .eq("type", "delivery")
+          .in("status", ["scheduled", "assigned"])
+          .is("route_id", null)
+          .eq("orders.status", "ready")
+          .neq("scheduled_date", day)
+          .order("scheduled_date")
+          .limit(200),
       ]);
-      for (const r of [stops, routes, unscheduled]) if (r.error) throw r.error;
+      for (const r of [stops, routes, unscheduled, elsewhere]) if (r.error) throw r.error;
       const pending = (unscheduled.data ?? []).filter((o) => {
         const need = o.status === "created" ? "pickup" : "delivery";
         return !(o.deliveries as { type: string; status: string }[]).some((d) => d.type === need && !["failed", "cancelled"].includes(d.status));
       });
-      return { stops: (stops.data ?? []) as Stop[], routes: (routes.data ?? []) as Route[], pending };
+      return { stops: (stops.data ?? []) as Stop[], routes: (routes.data ?? []) as Route[], pending, elsewhere: (elsewhere.data ?? []) as Stop[] };
     },
   });
 
   const stops = q.data?.stops ?? [];
   const unrouted = stops.filter((s) => !s.route_id);
+  const elsewhere = q.data?.elsewhere ?? [];
+  // Ready home deliveries with no stop at all: the route creates one.
+  const readyUnscheduled: Unscheduled[] = (q.data?.pending ?? [])
+    .filter((o) => o.status === "ready")
+    .map((o) => ({ id: o.id, number: o.number, customer: (o.customers as unknown as { name: string }).name }));
+  const routable = unrouted.filter((s) => !["completed", "failed", "cancelled"].includes(s.status)).length + elsewhere.length + readyUnscheduled.length;
 
   return (
     <Page
@@ -87,7 +106,7 @@ export function DeliveryPlanner() {
               title={`Sin ruta (${unrouted.length})`}
               action={
                 can("delivery.manage") && (
-                  <Button variant="tonal" icon="route" onClick={() => setEditing("new")} disabled={!unrouted.length}>
+                  <Button variant="tonal" icon="route" onClick={() => setEditing("new")} disabled={!routable}>
                     Crear ruta
                   </Button>
                 )
@@ -141,6 +160,8 @@ export function DeliveryPlanner() {
           day={day}
           route={editing === "new" ? null : editing}
           stops={stops}
+          elsewhere={elsewhere}
+          unscheduled={readyUnscheduled}
           couriers={(team.data ?? []).filter((m) => m.active && m.role_home === "courier")}
           onClose={() => setEditing(null)}
         />
@@ -184,16 +205,28 @@ function StopList({ stops, name, numbered, onEdit }: { stops: Stop[]; name: (id:
   );
 }
 
+interface Unscheduled {
+  id: string;
+  number: number;
+  customer: string;
+}
+
+const VIRTUAL = "order:";
+
 function RouteDialog({
   day,
   route,
   stops,
+  elsewhere,
+  unscheduled,
   couriers,
   onClose,
 }: {
   day: string;
   route: Route | null;
   stops: Stop[];
+  elsewhere: Stop[];
+  unscheduled: Unscheduled[];
   couriers: { user_id: string; display_name: string }[];
   onClose: () => void;
 }) {
@@ -205,15 +238,32 @@ function RouteDialog({
     setSelected(
       route
         ? stops.filter((s) => s.route_id === route.id).sort((a, b) => (a.stop_position ?? 0) - (b.stop_position ?? 0)).map((s) => s.id)
-        : stops.filter((s) => !s.route_id && !["completed", "failed"].includes(s.status)).map((s) => s.id),
+        : // New route: today's stops plus every ready home delivery, whatever its day.
+          [
+            ...stops.filter((s) => !s.route_id && !["completed", "failed", "cancelled"].includes(s.status)).map((s) => s.id),
+            ...elsewhere.map((s) => s.id),
+            ...unscheduled.map((o) => VIRTUAL + o.id),
+          ],
     );
-  }, [route, stops]);
+  }, [route, stops, elsewhere, unscheduled]);
 
   const candidates = useMemo(
-    () => stops.filter((s) => (!s.route_id || s.route_id === route?.id) && !["completed", "failed", "cancelled"].includes(s.status)),
-    [stops, route],
+    () => [
+      ...stops.filter((s) => (!s.route_id || s.route_id === route?.id) && !["completed", "failed", "cancelled"].includes(s.status)),
+      ...elsewhere,
+    ],
+    [stops, elsewhere, route],
   );
-  const byId = new Map(stops.map((s) => [s.id, s]));
+  const byId = new Map([...stops, ...elsewhere].map((s) => [s.id, s]));
+  const virtual = new Map(unscheduled.map((o) => [VIRTUAL + o.id, o]));
+  const label = (id: string) => {
+    const v = virtual.get(id);
+    if (v) return { title: `#${v.number} · ${v.customer}`, detail: "Entrega · sin programar (se programa para este día)" };
+    const s = byId.get(id);
+    if (!s) return null;
+    const when = s.scheduled_date !== day ? `programada ${dateOnly(s.scheduled_date)} → pasa a este día` : (s.window_label ?? "Sin horario");
+    return { title: `#${s.orders.number} · ${s.orders.customers.name}`, detail: `${DELIVERY_TYPE_LABEL[s.type]} · ${when} · ${formatAddress(s.address)}` };
+  };
   const move = (id: string, dir: -1 | 1) =>
     setSelected((ids) => {
       const i = ids.indexOf(id);
@@ -225,16 +275,26 @@ function RouteDialog({
     });
 
   const save = useAction(
-    () =>
-      rpc("save_route", {
+    async () => {
+      // Ready orders without a delivery stop get one for the route's day.
+      const ids: string[] = [];
+      for (const id of selected) {
+        ids.push(
+          id.startsWith(VIRTUAL)
+            ? await rpc<string>("schedule_delivery", { p_order: id.slice(VIRTUAL.length), p_type: "delivery", p_date: day })
+            : id,
+        );
+      }
+      return rpc("save_route", {
         p_tenant: tenantId,
         p_route: route?.id ?? null,
         p_date: day,
         p_name: nameValue || null,
         p_courier: courier || null,
-        p_delivery_ids: selected,
-      }),
-    { success: "Ruta guardada", invalidate: [["deliveries"], ["courier"]], dispatch: false },
+        p_delivery_ids: ids,
+      });
+    },
+    { success: "Ruta guardada", invalidate: [["deliveries"], ["courier"], ["board"], ["order"]], dispatch: false },
   );
 
   return (
@@ -263,18 +323,14 @@ function RouteDialog({
         <div className="title-s">Paradas en orden</div>
         <div className="list card flush">
           {selected.map((id, i) => {
-            const s = byId.get(id);
-            if (!s) return null;
+            const l = label(id);
+            if (!l) return null;
             return (
               <div key={id} className="list-item">
                 <span className="lead">{i + 1}</span>
                 <div className="grow">
-                  <div className="headline">
-                    #{s.orders.number} · {s.orders.customers.name}
-                  </div>
-                  <div className="supporting">
-                    {DELIVERY_TYPE_LABEL[s.type]} · {s.window_label ?? "Sin horario"} · {formatAddress(s.address)}
-                  </div>
+                  <div className="headline">{l.title}</div>
+                  <div className="supporting">{l.detail}</div>
                 </div>
                 <IconButton icon="arrow_upward" label="Subir" onClick={() => move(id, -1)} disabled={i === 0} />
                 <IconButton icon="arrow_downward" label="Bajar" onClick={() => move(id, 1)} disabled={i === selected.length - 1} />
@@ -284,20 +340,16 @@ function RouteDialog({
           })}
           {selected.length === 0 && <Empty icon="route" title="Agrega paradas" />}
         </div>
-        {candidates.filter((c) => !selected.includes(c.id)).length > 0 && (
+        {[...candidates.map((c) => c.id), ...virtual.keys()].filter((id) => !selected.includes(id)).length > 0 && (
           <>
             <div className="title-s">Disponibles</div>
             <div className="col gap-4">
-              {candidates
-                .filter((c) => !selected.includes(c.id))
-                .map((s) => (
-                  <Checkbox
-                    key={s.id}
-                    checked={false}
-                    onChange={() => setSelected((ids) => [...ids, s.id])}
-                    label={`#${s.orders.number} · ${s.orders.customers.name} · ${DELIVERY_TYPE_LABEL[s.type]} · ${s.window_label ?? ""}`}
-                  />
-                ))}
+              {[...candidates.map((c) => c.id), ...virtual.keys()]
+                .filter((id) => !selected.includes(id))
+                .map((id) => {
+                  const l = label(id)!;
+                  return <Checkbox key={id} checked={false} onChange={() => setSelected((ids) => [...ids, id])} label={`${l.title} · ${l.detail}`} />;
+                })}
             </div>
           </>
         )}
