@@ -47,4 +47,4 @@ select set_config('request.jwt.claims', json_build_object('sub', :'driver')::tex
 select public.update_delivery_status(:'pk_c', 'completed');
 reset role;
 select test.assert((select status from public.deliveries where id = :'pk_c') = 'completed', 'courier pickup stays completed');
-select test.assert((select status from public.orders where id = :'ord_c') = 'picked_up', 'and the order is received');
+select test.assert((select status from public.orders where id = :'ord_c') = 'in_production', 'and the order goes into production');

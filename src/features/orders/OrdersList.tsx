@@ -9,7 +9,7 @@ import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
 import type { Order } from "../../lib/types";
 import { Chip, Empty, Icon, Loading } from "../../ui/components";
-import { OrderStatusBadge, PaymentBadge, PriorityBadge, RiskBadge } from "../shared";
+import { OrderStatusBadge, PaymentBadge, PriorityBadge, RiskBadge, FulfillmentBadge } from "../shared";
 
 type Filter = "open" | "unpaid" | "all" | OrderStatus;
 
@@ -88,6 +88,7 @@ export function OrdersList() {
                       #{o.number} · {o.customers.name}
                     </div>
                     <div className="row wrap gap-4 mt-8">
+                      <FulfillmentBadge fulfillment={o.fulfillment} />
                       <OrderStatusBadge status={o.status} />
                       <PaymentBadge status={o.payment_status} />
                       <PriorityBadge priority={o.priority} />
@@ -125,7 +126,9 @@ export function OrdersList() {
                         </td>
                         <td>
                           <div>{o.customers.name}</div>
-                          <div className="body-s muted">{o.fulfillment === "delivery" ? "A domicilio" : "Mostrador"}</div>
+                          <div className="mt-8">
+                            <FulfillmentBadge fulfillment={o.fulfillment} />
+                          </div>
                         </td>
                         <td>
                           <div className="row wrap gap-4">
