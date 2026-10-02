@@ -69,7 +69,7 @@ const RECEIPT_COLUMNS =
   "id, number, created_at, status, payment_status, fulfillment, subtotal_cents, discount_cents, loyalty_credit_cents, delivery_fee_cents, tax_cents, total_cents, amount_paid_cents, balance_cents, created_by, customers!inner(name, phone)";
 
 export function ReceiptsReport({ range }: { range: DateRange }) {
-  const { tenantId, tenant } = useTenant();
+  const { tenantId, tenant, ops } = useTenant();
   const name = useMemberNames();
   const navigate = useNavigate();
   const [f, setF] = useState<ReceiptFilters>({ status: "", payment: "", fulfillment: "", search: "" });
@@ -176,11 +176,13 @@ export function ReceiptsReport({ range }: { range: DateRange }) {
               </option>
             ))}
           </select>
+          {ops.hybrid && (
           <select className="input sm" value={f.fulfillment} onChange={(e) => setF({ ...f, fulfillment: e.target.value as ReceiptFilters["fulfillment"] })} aria-label="Tipo">
             <option value="">Mostrador y domicilio</option>
             <option value="walk_in">Mostrador</option>
             <option value="delivery">Domicilio</option>
           </select>
+          )}
         </div>
         {list.error ? (
           <ReportError error={list.error} />

@@ -10,6 +10,8 @@ export interface NavItem {
   label: string;
   icon: string;
   perms: Permission[];
+  /** Only for businesses that do pickups and deliveries. */
+  delivery?: boolean;
 }
 
 export const NAV: NavItem[] = [
@@ -17,7 +19,7 @@ export const NAV: NavItem[] = [
   { to: "/analytics", label: "Análisis", icon: "monitoring", perms: ["reports.view"] },
   { to: "/orders", label: "Órdenes", icon: "receipt_long", perms: ["orders.view"] },
   { to: "/production", label: "Producción", icon: "local_laundry_service", perms: ["production.view"] },
-  { to: "/delivery", label: "Entregas", icon: "local_shipping", perms: ["delivery.view", "delivery.manage"] },
+  { to: "/delivery", label: "Entregas", icon: "local_shipping", perms: ["delivery.view", "delivery.manage"], delivery: true },
   { to: "/customers", label: "Clientes", icon: "group", perms: ["customers.view"] },
   { to: "/payments", label: "Pagos", icon: "payments", perms: ["payments.view"] },
   { to: "/catalog", label: "Catálogo", icon: "sell", perms: ["catalog.manage", "pricing.manage"] },
@@ -27,8 +29,8 @@ export const NAV: NavItem[] = [
 ];
 
 export function useNav() {
-  const { can } = useTenant();
-  return NAV.filter((n) => can(...n.perms));
+  const { can, ops } = useTenant();
+  return NAV.filter((n) => can(...n.perms) && (!n.delivery || ops.delivery));
 }
 
 function RailItem({ item }: { item: NavItem }) {
@@ -79,7 +81,7 @@ function MoreItem({ items }: { items: NavItem[] }) {
 
 export function AccountMenu() {
   const { user, signOut } = useAuth();
-  const { tenant, memberships, switchTenant, can } = useTenant();
+  const { tenant, memberships, switchTenant, can, ops } = useTenant();
   const navigate = useNavigate();
   const name = tenant?.display_name ?? user?.email ?? "";
   return (
@@ -115,7 +117,7 @@ export function AccountMenu() {
                   <Icon name="store" /> {m.tenant_name}
                 </button>
               ))}
-          {can("delivery.execute") && (
+          {can("delivery.execute") && ops.delivery && (
             <button
               onClick={() => {
                 close();

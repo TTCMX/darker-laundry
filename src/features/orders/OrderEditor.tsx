@@ -133,7 +133,7 @@ export function OrderEditor() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
-  const { tenantId, settings, can } = useTenant();
+  const { tenantId, settings, can, ops } = useTenant();
   const catalog = useCatalog();
 
   const existing = useQuery({
@@ -159,7 +159,7 @@ export function OrderEditor() {
   });
 
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [fulfillment, setFulfillment] = useState<"delivery" | "walk_in">("walk_in");
+  const [fulfillment, setFulfillment] = useState<"delivery" | "walk_in">(ops.defaultFulfillment);
   const [pickupAddress, setPickupAddress] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [zoneId, setZoneId] = useState("");
@@ -429,14 +429,16 @@ export function OrderEditor() {
 
             <Card title="Servicio">
               <div className="col gap-16">
-                <Segmented
-                  value={fulfillment}
-                  onChange={setFulfillment}
-                  options={[
-                    { value: "walk_in", label: "En mostrador" },
-                    { value: "delivery", label: "Recolección y entrega" },
-                  ]}
-                />
+                {ops.hybrid && (
+                  <Segmented
+                    value={fulfillment}
+                    onChange={setFulfillment}
+                    options={[
+                      { value: "walk_in", label: "En mostrador" },
+                      { value: "delivery", label: "Recolección y entrega" },
+                    ]}
+                  />
+                )}
                 {fulfillment === "delivery" && customer && (
                   <div className="col gap-12">
                     {addresses.data?.length === 0 && <Banner tone="warning">El cliente no tiene direcciones.</Banner>}

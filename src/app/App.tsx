@@ -53,9 +53,9 @@ function Guard({ perms, children }: { perms: Permission[]; children: ReactNode }
 
 /** Landing: couriers go to their route, everyone else to their first section. */
 function Home() {
-  const { tenant, can } = useTenant();
-  if (tenant?.role_home === "courier") return <Navigate to="/courier" replace />;
-  const first = NAV.find((n) => can(...n.perms));
+  const { tenant, can, ops } = useTenant();
+  if (tenant?.role_home === "courier" && ops.delivery) return <Navigate to="/courier" replace />;
+  const first = NAV.find((n) => can(...n.perms) && (!n.delivery || ops.delivery));
   if (first) return <Navigate to={first.to} replace />;
   if (can("delivery.execute")) return <Navigate to="/courier" replace />;
   return (

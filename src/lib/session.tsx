@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Permission } from "../domain/permissions";
 import { allowedReadOnly, type Access } from "../domain/plan";
+import { operation, type Operation, type OperationModel } from "../domain/operation";
 import { resolveSettings, type TenantSettings } from "../domain/settings";
 import { setFormatContext } from "./format";
 import { supabase } from "./supabase";
@@ -70,6 +71,7 @@ export interface Membership {
   created_at: string | null;
   trial_ends_at: string | null;
   access: Access;
+  operation_model: OperationModel;
 }
 
 interface TenantState {
@@ -78,6 +80,8 @@ interface TenantState {
   tenant: Membership | null;
   tenantId: string;
   settings: TenantSettings;
+  /** Counter only / home delivery only / hybrid: which features apply. */
+  ops: Operation;
   can: (...anyOf: Permission[]) => boolean;
   switchTenant: (id: string) => void;
   refresh: () => Promise<unknown>;
@@ -135,6 +139,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     tenant,
     tenantId: tenant?.tenant_id ?? "",
     settings,
+    ops: operation(tenant?.operation_model),
     can,
     switchTenant: (id) => {
       writeStored(id);

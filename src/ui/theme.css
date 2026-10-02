@@ -929,3 +929,18 @@ html.scroll-locked, html.scroll-locked body { overflow: hidden; }
 .badge.fulfillment.delivery { background: var(--peach); color: var(--ink); }
 .badge.fulfillment.walk-in { background: var(--mint); color: var(--ink); }
 .badge.fulfillment .icon { font-size: 15px; }
+
+/* Operation model picker */
+.op-picker { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.op-option { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; border: 1px solid var(--outline-variant); border-radius: var(--radius-md); background: var(--surface-container-lowest); color: var(--on-surface); font: inherit; cursor: pointer; text-align: left; }
+.op-option:hover:not(:disabled) { border-color: var(--outline); }
+.op-option.on { border: 2px solid var(--ink); padding: 13px; background: var(--surface-container-low); }
+.op-option:disabled { cursor: default; opacity: 0.7; }
+.op-option.on:disabled { opacity: 1; }
+.op-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--lilac-tile); }
+.op-option:nth-child(1) .op-icon { background: var(--mint); }
+.op-option:nth-child(2) .op-icon { background: var(--peach); }
+@media (max-width: 600px) {
+  .op-picker { grid-template-columns: minmax(0, 1fr); }
+  .op-option { flex-direction: row; align-items: center; }
+}

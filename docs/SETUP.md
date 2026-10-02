@@ -196,6 +196,24 @@ update public.tenants set trial_ends_at = trial_ends_at + interval '1 month' whe
 update public.tenants set plan = 'internal' where slug = 'mi-lavanderia';
 ```
 
+## 5f. Tipo de operación (mostrador, domicilio o híbrida)
+
+Requiere la migración `20261003000001_operation_model.sql`.
+
+- Se elige al crear el negocio y se ve en **Ajustes → Plan**:
+  - **Solo mostrador:** sin recolecciones, entregas, rutas, zonas de entrega ni couriers.
+  - **Todo a domicilio:** cada orden lleva recolección y entrega; no hay "entregar en mostrador".
+  - **Híbrida:** ambas, con la etiqueta A domicilio / Mostrador en cada orden.
+- La app oculta lo que no aplica y la base de datos lo rechaza (no se pueden crear órdenes ni paradas del tipo que no corresponde). Las órdenes que ya existían siguen funcionando.
+- **Va con el plan:** durante la prueba gratis (y en negocios `internal`) el dueño lo cambia cuando quiera, siempre que no queden órdenes abiertas del tipo que se quita. Con un plan pagado queda fijo y se cambia cambiando de plan. Los negocios que ya existían quedan como **Híbrida**.
+
+Administración (SQL Editor):
+
+```sql
+-- Pasar un negocio a un plan pagado de solo mostrador (o 'delivery' / 'hybrid')
+update public.tenants set plan = 'walk_in', operation_model = 'walk_in' where slug = 'mi-lavanderia';
+```
+
 ## 6. Desarrollo local
 
 Con Docker instalado:

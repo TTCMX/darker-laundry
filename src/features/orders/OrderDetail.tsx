@@ -98,7 +98,7 @@ export function OrderDetail() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
-  const { can, settings, tenantId } = useTenant();
+  const { can, settings, tenantId, ops } = useTenant();
   const name = useMemberNames();
   const team = useTeam();
   const [tab, setTab] = useState<TabKey>("summary");
@@ -219,14 +219,16 @@ export function OrderDetail() {
       case "ready":
         return (
           <>
-            {order.fulfillment === "delivery" && !delivery && (
+            {order.fulfillment === "delivery" && ops.delivery && !delivery && (
               <Button variant="tonal" icon="local_shipping" onClick={() => setScheduling("delivery")}>
                 Programar entrega
               </Button>
             )}
-            <Button icon="done_all" onClick={() => setStatus.mutate({ status: "delivered" })} loading={setStatus.isPending}>
-              Entregar en mostrador
-            </Button>
+            {ops.counter && (
+              <Button icon="done_all" onClick={() => setStatus.mutate({ status: "delivered" })} loading={setStatus.isPending}>
+                Entregar en mostrador
+              </Button>
+            )}
           </>
         );
       default:

@@ -60,7 +60,7 @@ function useSaver(table: string) {
 }
 
 export function CatalogPage() {
-  const { can } = useTenant();
+  const { can, ops } = useTenant();
   const catalog = useCatalog();
   const tabs = [
     ...(can("catalog.manage")
@@ -73,7 +73,7 @@ export function CatalogPage() {
       ? [
           { value: "volume" as const, label: "Precio por volumen" },
           { value: "discounts" as const, label: "Descuentos" },
-          { value: "zones" as const, label: "Zonas de entrega" },
+          ...(ops.delivery ? [{ value: "zones" as const, label: "Zonas de entrega" }] : []),
         ]
       : []),
   ];

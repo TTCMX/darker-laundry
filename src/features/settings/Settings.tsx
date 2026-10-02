@@ -15,7 +15,7 @@ import type { PaperWidth } from "../../lib/printing/escpos";
 import { sampleReceipt } from "../../lib/printing/sample";
 import { ReceiptPreview } from "../orders/PrintReceipt";
 import { PrinterCard } from "./PrinterCard";
-import { PlanCard } from "../plan/Plan";
+import { OperationCard, PlanCard } from "../plan/Plan";
 import { useRoles, useWorkflows } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
@@ -25,7 +25,7 @@ import { Badge, Banner, Button, Card, Checkbox, Chip, Dialog, Icon, IconButton, 
 type TabKey = "plan" | "business" | "operations" | "delivery" | "pricing" | "loyalty" | "receipts" | "payments" | "notifications";
 
 export function SettingsPage() {
-  const { tenantId } = useTenant();
+  const { tenantId, ops } = useTenant();
   const [params] = useSearchParams();
   const [tab, setTab] = useState<TabKey>("business");
   const q = useQuery({
@@ -52,7 +52,7 @@ export function SettingsPage() {
           tabs={[
             { value: "business", label: "Negocio" },
             { value: "operations", label: "Operación" },
-            { value: "delivery", label: "Entregas" },
+            ...(ops.delivery ? [{ value: "delivery" as const, label: "Entregas" }] : []),
             { value: "pricing", label: "Precios e impuestos" },
             { value: "loyalty", label: "Lealtad" },
             { value: "receipts", label: "Tickets" },
@@ -64,7 +64,10 @@ export function SettingsPage() {
         {!q.data ? (
           <Loading />
         ) : tab === "plan" ? (
-          <PlanCard />
+          <div className="col gap-16">
+            <PlanCard />
+            <OperationCard />
+          </div>
         ) : tab === "business" ? (
           <Business row={q.data} />
         ) : tab === "operations" ? (

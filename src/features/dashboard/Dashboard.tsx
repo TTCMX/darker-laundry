@@ -31,7 +31,7 @@ interface Summary {
 }
 
 export function Dashboard() {
-  const { tenantId, tenant } = useTenant();
+  const { tenantId, tenant, ops } = useTenant();
   const navigate = useNavigate();
   const q = useQuery({
     queryKey: ["dashboard", tenantId],
@@ -55,8 +55,12 @@ export function Dashboard() {
             <div className="grid cols-4">
               <Stat label="Órdenes nuevas" icon="receipt_long" value={s.orders_today} hint={money(s.sales_today_cents)} tone="accent" />
               <Stat label="Cobrado" icon="payments" value={money(s.collected_today_cents)} hint="Pagos registrados hoy" />
-              <Stat label="Recolecciones" icon="move_to_inbox" value={`${s.pickups_done_today}/${s.pickups_today}`} hint="Completadas / programadas" />
-              <Stat label="Entregas" icon="local_shipping" value={`${s.deliveries_done_today}/${s.deliveries_today}`} hint="Completadas / programadas" />
+              {ops.delivery && (
+                <>
+                  <Stat label="Recolecciones" icon="move_to_inbox" value={`${s.pickups_done_today}/${s.pickups_today}`} hint="Completadas / programadas" />
+                  <Stat label="Entregas" icon="local_shipping" value={`${s.deliveries_done_today}/${s.deliveries_today}`} hint="Completadas / programadas" />
+                </>
+              )}
               <Stat label="En producción" icon="local_laundry_service" value={s.in_production} />
               <Stat label="Listas" icon="check_circle" value={s.ready} hint="Esperando entrega" />
               <Stat label="Atrasadas" icon="alarm" value={s.overdue} tone={s.overdue ? "alert" : undefined} hint="Pasaron la fecha prometida" />

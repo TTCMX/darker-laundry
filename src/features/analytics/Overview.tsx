@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "../../domain/orders";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "../../domain/payments";
 import { money, qty } from "../../lib/format";
+import { useTenant } from "../../lib/session";
 import { Card, Loading, Segmented } from "../../ui/components";
 import { useReport } from "./Analytics";
 import { BarList, Heatmap, Kpi, TrendChart } from "./charts";
@@ -63,6 +64,7 @@ const count = (n: number) => Math.round(n).toLocaleString("es-MX");
 
 export function Overview({ range }: { range: DateRange }) {
   const q = useReport<SalesReport>("analytics_sales", range);
+  const { ops } = useTenant();
   const [metric, setMetric] = useState<Metric>("sales_cents");
   if (q.error) return <ReportError error={q.error} />;
   if (!q.data) return <Loading />;
@@ -79,7 +81,7 @@ export function Overview({ range }: { range: DateRange }) {
     <div className="col gap-16" style={{ opacity: q.isPlaceholderData ? 0.6 : 1 }}>
       <div className="grid cols-4 kpis">
         <Kpi label="Ventas" icon="trending_up" value={money(c.sales_cents)} current={c.sales_cents} previous={p.sales_cents} hint={`antes ${money(p.sales_cents)}`} />
-        <Kpi label="Órdenes" icon="receipt_long" value={count(c.orders)} current={c.orders} previous={p.orders} hint={`${count(c.delivery_orders)} a domicilio`} />
+        <Kpi label="Órdenes" icon="receipt_long" value={count(c.orders)} current={c.orders} previous={p.orders} hint={ops.hybrid ? `${count(c.delivery_orders)} a domicilio` : undefined} />
         <Kpi label="Ticket promedio" icon="shopping_bag" value={money(c.avg_ticket_cents)} current={c.avg_ticket_cents} previous={p.avg_ticket_cents} />
         <Kpi label="Cobrado" icon="payments" value={money(c.collected_cents)} current={c.collected_cents} previous={p.collected_cents} hint={c.refunds_cents ? `${money(c.refunds_cents)} reembolsado` : undefined} />
         <Kpi label="Clientes nuevos" icon="person_add" value={count(c.new_customers)} current={c.new_customers} previous={p.new_customers} hint={`${count(c.customers)} compraron`} />
@@ -105,6 +107,7 @@ export function Overview({ range }: { range: DateRange }) {
       </Card>
 
       <div className="grid cols-2">
+{ops.hybrid && (
         <Card title="Mostrador vs. domicilio">
           <BarList
             format={money}
@@ -116,6 +119,7 @@ export function Overview({ range }: { range: DateRange }) {
             }))}
           />
         </Card>
+        )}
         <Card title="Cobrado por método">
           <BarList
             format={money}
