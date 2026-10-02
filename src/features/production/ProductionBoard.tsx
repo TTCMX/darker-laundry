@@ -3,14 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Page } from "../../app/Shell";
 import { remainingMinutes, riskLevel, stepActions, type RiskLevel } from "../../domain/production";
-import { dateTime, qty, unitLabel } from "../../lib/format";
+import { dateOnly, dateTime, qty, unitLabel } from "../../lib/format";
 import { rpc, useAction, useMemberNames, useTeam, useWorkflows } from "../../lib/queries";
 import { useAuth, useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
-import type { Order, ProductionStep } from "../../lib/types";
+import type { DeliveryStatus, Order, ProductionStep } from "../../lib/types";
 import { Banner, Button, Chip, Icon, Loading } from "../../ui/components";
 import { errorMessage } from "../../lib/errors";
-import { PriorityBadge, RiskBadge } from "../shared";
+import { FulfillmentBadge, PriorityBadge, RiskBadge } from "../shared";
 import { IssueDialog } from "../orders/OrderDialogs";
 import { AddPhotoButton, PhotoStrip, type OrderPhotoRow } from "../orders/OrderPhotos";
 
@@ -19,7 +19,23 @@ type BoardOrder = Order & {
   order_items: { name: string; quantity: number; unit: string }[];
   order_production_steps: ProductionStep[];
   order_photos: OrderPhotoRow[];
+  deliveries: { type: "pickup" | "delivery"; status: DeliveryStatus; scheduled_date: string; window_label: string | null }[];
 };
+
+/** Ready home deliveries: when they go out (scheduled by itself when the order became ready). */
+function DeliveryLine({ stops }: { stops: BoardOrder["deliveries"] }) {
+  const next = stops.find((d) => d.type === "delivery" && !["completed", "failed", "cancelled"].includes(d.status));
+  return next ? (
+    <div className="body-s">
+      <Icon name="local_shipping" size="sm" /> Entrega {dateOnly(next.scheduled_date)}
+      {next.window_label ? ` · ${next.window_label}` : ""}
+    </div>
+  ) : (
+    <div className="body-s error-text">
+      <Icon name="local_shipping" size="sm" /> Sin entrega programada
+    </div>
+  );
+}
 
 interface Column {
   key: string;
@@ -47,7 +63,7 @@ export function ProductionBoard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
-        .select("*, customers(name), order_items(name, quantity, unit), order_production_steps!order_production_steps_tenant_id_order_id_fkey(*), order_photos(id, path, caption, order_status, step_name, delivery_id, taken_by, created_at)")
+        .select("*, customers(name), order_items(name, quantity, unit), order_production_steps!order_production_steps_tenant_id_order_id_fkey(*), order_photos(id, path, caption, order_status, step_name, delivery_id, taken_by, created_at), deliveries(type, status, scheduled_date, window_label)")
         .eq("tenant_id", tenantId)
         .in("status", ["picked_up", "in_production", "ready"])
         .order("promised_at", { ascending: true, nullsFirst: false })
@@ -92,7 +108,7 @@ export function ProductionBoard() {
           return rpc("set_order_status", { p_order: a.id, p_status: "delivered" });
       }
     },
-    { invalidate: [["board"], ["dashboard"], ["order"], ["orders"]] },
+    { invalidate: [["board"], ["dashboard"], ["order"], ["orders"], ["deliveries"], ["delivery"]] },
   );
 
   const columns = useMemo<Column[]>(() => {
@@ -116,7 +132,10 @@ export function ProductionBoard() {
     const defaultWf = workflows.data?.workflows.find((w) => w.is_default) ?? workflows.data?.workflows[0];
     const wfSteps = (workflows.data?.steps ?? []).filter((s) => s.workflow_id === defaultWf?.id && s.active).sort((a, b) => a.position - b.position);
 
-    const cols: Column[] = [{ key: "received", title: "Recibidas", icon: "inventory_2", orders: visible.filter((o) => o.status === "picked_up") }];
+    // "Recibidas" only holds orders still waiting for their services (the rest
+    // go straight into production): hidden when empty.
+    const received = visible.filter((o) => o.status === "picked_up");
+    const cols: Column[] = received.length ? [{ key: "received", title: "Por capturar", icon: "inventory_2", orders: received }] : [];
     const byStep = new Map<string, Column>();
     for (const s of wfSteps) {
       const c = { key: s.id, title: s.name, icon: "local_laundry_service", orders: [] as BoardOrder[] };
@@ -187,7 +206,10 @@ export function ProductionBoard() {
                         <RiskBadge risk={risk} />
                       </div>
                     </div>
-                    <div className="body-m">{o.customers.name}</div>
+                    <div className="row between gap-8">
+                      <span className="body-m truncate">{o.customers.name}</span>
+                      <FulfillmentBadge fulfillment={o.fulfillment} />
+                    </div>
                     <div className="body-s muted">
                       {o.order_items
                         .slice(0, 3)
@@ -198,6 +220,7 @@ export function ProductionBoard() {
                     <div className="body-s muted">
                       <Icon name="schedule" size="sm" /> {dateTime(o.promised_at)}
                     </div>
+                    {o.status === "ready" && o.fulfillment === "delivery" && <DeliveryLine stops={o.deliveries} />}
                     <PhotoStrip orderId={o.id} photos={o.order_photos} />
                     {total > 0 && (
                       <div className="progress" title={`${done}/${total}`}>

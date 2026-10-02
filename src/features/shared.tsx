@@ -3,7 +3,7 @@ import { ORDER_STATUS_LABEL, PRIORITY_LABEL, type OrderPriority, type OrderStatu
 import { PAYMENT_STATUS_LABEL, type OrderPaymentStatus } from "../domain/payments";
 import { RISK_LABEL, type RiskLevel } from "../domain/production";
 import type { DeliveryStatus } from "../lib/types";
-import { Badge, type Tone } from "../ui/components";
+import { Badge, Icon, type Tone } from "../ui/components";
 
 const ORDER_TONE: Record<OrderStatus, Tone> = {
   created: "neutral",
@@ -40,6 +40,18 @@ const PAY_TONE: Record<OrderPaymentStatus, Tone> = {
   refunded: "neutral",
   failed: "error",
 };
+
+/** Home delivery vs counter: visible everywhere so nobody delivers to the wrong place. */
+export const FulfillmentBadge = ({ fulfillment }: { fulfillment: "delivery" | "walk_in" }) =>
+  fulfillment === "delivery" ? (
+    <span className="badge fulfillment delivery">
+      <Icon name="local_shipping" /> A domicilio
+    </span>
+  ) : (
+    <span className="badge fulfillment walk-in">
+      <Icon name="storefront" /> Mostrador
+    </span>
+  );
 
 export const PaymentBadge = ({ status }: { status: OrderPaymentStatus }) => (
   <Badge tone={PAY_TONE[status]}>{PAYMENT_STATUS_LABEL[status]}</Badge>

@@ -923,3 +923,9 @@ html.scroll-locked, html.scroll-locked body { overflow: hidden; }
   .map-head + .map-row { border-top: 0; }
 }
 .content > .banner:first-child { margin-bottom: 16px; }
+
+/* Home delivery vs counter, everywhere */
+.badge.fulfillment { gap: 4px; }
+.badge.fulfillment.delivery { background: var(--peach); color: var(--ink); }
+.badge.fulfillment.walk-in { background: var(--mint); color: var(--ink); }
+.badge.fulfillment .icon { font-size: 15px; }

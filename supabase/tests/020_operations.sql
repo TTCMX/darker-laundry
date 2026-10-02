@@ -87,7 +87,8 @@ select public.update_delivery_status(:'pickup_1', 'en_route');
 select test.throws(format($$select public.update_delivery_status(%L, 'scheduled')$$, :'pickup_1'), '22023',
   'stops cannot go back');
 select public.update_delivery_status(:'pickup_1', 'completed', 'Bolsa grande', null, array['a/b.jpg']);
-select test.assert((select status from public.orders where id = :'order_1') = 'picked_up', 'completed pickup receives the order');
+-- Received with its services captured: it goes straight into production.
+select test.assert((select status from public.orders where id = :'order_1') = 'in_production', 'completed pickup puts the order in production');
 select test.assert((select completed_by from public.deliveries where id = :'pickup_1') = :'driver'::uuid, 'pickup completed by driver');
 
 -- ── Production ───────────────────────────────────────────────────────────
@@ -171,7 +172,14 @@ select test.throws(format($$select public.record_payment(%L, 100, 'cash', 'k-4')
 
 -- Delivery run.
 select set_config('request.jwt.claims', json_build_object('sub', :'front')::text, false);
-select public.schedule_delivery(:'order_1', 'delivery', current_date, 'Tarde', '13:00', '18:00') as delivery_1 \gset
+-- Home delivery was scheduled by itself when the order became ready.
+select id as delivery_1 from public.deliveries where order_id = :'order_1' and type = 'delivery' and status in ('scheduled', 'assigned') \gset
+select test.assert((select notes from public.deliveries where id = :'delivery_1') like 'Programada automáticamente%', 'delivery scheduled automatically');
+select test.throws(format($$select public.schedule_delivery(%L, 'delivery', current_date)$$, :'order_1'), '23505', 'only one active delivery');
+-- (It went to the promised day; today's route is used below.)
+reset role;
+update public.deliveries set scheduled_date = current_date where id = :'delivery_1';
+set role authenticated;
 select set_config('request.jwt.claims', json_build_object('sub', :'owner')::text, false);
 select public.save_route(:'tenant_a', null, current_date, 'Ruta 1', :'driver', array[:'delivery_1']::uuid[]) as route_1 \gset
 select test.assert((select stop_position from public.deliveries where id = :'delivery_1') = 1, 'stop ordered in route');

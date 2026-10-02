@@ -30,6 +30,7 @@ import { formatAddress, mapsUrl } from "../customers/CustomerDialogs";
 import {
   DELIVERY_TYPE_LABEL,
   DeliveryStatusBadge,
+  FulfillmentBadge,
   ISSUE_STATUS_LABEL,
   ISSUE_TYPE_LABEL,
   KvRow,
@@ -316,9 +317,7 @@ export function OrderDetail() {
                 <PaymentBadge status={order.payment_status} />
                 <RiskBadge risk={risk} />
                 <PriorityBadge priority={order.priority} />
-                <Badge tone="outline" icon={order.fulfillment === "delivery" ? "local_shipping" : "storefront"}>
-                  {order.fulfillment === "delivery" ? "A domicilio" : "Mostrador"}
-                </Badge>
+                <FulfillmentBadge fulfillment={order.fulfillment} />
               </div>
               <Link to={`/customers/${customer.id}`} className="title-l" style={{ color: "var(--on-surface)", marginTop: 8 }}>
                 {customer.name}

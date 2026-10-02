@@ -102,6 +102,13 @@ El cron diario (`/api/cron/daily`) queda registrado solo con `vercel.json`: env�
 6. **Equipo → Invitar**: genera un enlace por persona con su rol (Gerente, Mostrador, Producción, Courier) y compártelo por WhatsApp. El courier entra directo a su vista móvil.
 7. Crea una orden de prueba y recórrela: recolección → producción → entrega → cobro → enlace de seguimiento.
 
+**Cómo fluyen las órdenes** (requiere la migración `20261002000001_production_flow.sql`):
+- Una orden de **mostrador** con servicios entra sola a producción al crearla.
+- Una orden **a domicilio** entra a producción en cuanto se recibe la ropa (el courier completa la recolección o se pulsa "Recibir en tienda"). Si todavía no tiene servicios, espera en la columna "Por capturar" del tablero y entra sola al capturarlos.
+- Al terminar la última fase, las órdenes a domicilio quedan **programadas para entrega** automáticamente: el día prometido (o el siguiente día laboral con horario disponible), en el primer horario libre, asignadas al courier si solo hay uno. Aparecen en Entregas y en la ruta del courier. Una entrega fallida se reprograma a mano.
+- Cada orden muestra si es **A domicilio** o **Mostrador** en el tablero, la lista de órdenes y su detalle.
+- **Crear ruta** (en Entregas) trae ya seleccionados todos los pedidos listos a domicilio, sin importar el día para el que estaban programados o si no tenían entrega; al guardar, las paradas pasan al día de la ruta (requiere `20261002000002_route_any_day.sql`).
+
 ---
 
 ## 4. Pagos en línea con MercadoPago (opcional)
