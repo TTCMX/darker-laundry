@@ -108,9 +108,14 @@ export function OrderDetail() {
   const [reporting, setReporting] = useState(false);
   const [resolving, setResolving] = useState<QualityIssue | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
   const [editingStop, setEditingStop] = useState<Delivery | null>(null);
 
+  const remove = useAction((reason: string) => rpc("delete_order", { p_order: id, p_reason: reason }), {
+    success: "Orden eliminada",
+    invalidate: [["orders"], ["board"], ["dashboard"], ["deliveries"], ["analytics"], ["customers"]],
+  });
   const setStatus = useAction((args: { status: OrderStatus; note?: string }) => rpc("set_order_status", { p_order: id, p_status: args.status, p_note: args.note ?? null }), {
     success: "Estado actualizado",
   });
@@ -302,6 +307,20 @@ export function OrderDetail() {
                   }}
                 >
                   <Icon name="block" /> Cancelar orden
+                </button>
+              )}
+              {can("orders.cancel") && (
+                <button
+                  onClick={() => {
+                    close();
+                    if (payments.length) {
+                      toast.show("La orden tiene pagos: cancélala y reembolsa en lugar de eliminarla.", { error: true });
+                      return;
+                    }
+                    setDeleting(true);
+                  }}
+                >
+                  <Icon name="delete" /> Eliminar orden
                 </button>
               )}
             </>
@@ -807,6 +826,23 @@ export function OrderDetail() {
         loading={setStatus.isPending}
         onClose={() => setCancelling(false)}
         onConfirm={(reason) => setStatus.mutate({ status: "cancelled", note: reason }, { onSuccess: () => setCancelling(false) })}
+      />
+      <ReasonDialog
+        open={deleting}
+        title={`Eliminar orden #${order.number}`}
+        label="Motivo (queda en la Bitácora)"
+        confirmLabel="Eliminar definitivamente"
+        danger
+        loading={remove.isPending}
+        onClose={() => setDeleting(false)}
+        onConfirm={(reason) =>
+          remove.mutate(reason, {
+            onSuccess: () => {
+              setDeleting(false);
+              navigate("/orders", { replace: true });
+            },
+          })
+        }
       />
       {photos.length > 0 && (
         <div className="scrim" onClick={() => setPhotos([])}>

@@ -5,6 +5,7 @@ const MESSAGES: [RegExp, string][] = [
   [/missing permission|forbidden|not your|only an owner|only a manager|only dispatch/i, "No tienes permiso para esta acción."],
   [/authentication required|invalid session|jwt/i, "Tu sesión expiró. Vuelve a iniciar sesión."],
   [/invalid status change/i, "Ese cambio de estado no está permitido."],
+  [/the order has payments/i, "La orden tiene pagos: cancélala y reembolsa en lugar de eliminarla."],
   [/home delivery is not enabled/i, "Tu lavandería está configurada como solo mostrador: no maneja recolecciones ni entregas."],
   [/counter orders are not enabled/i, "Tu lavandería está configurada como todo a domicilio: no maneja órdenes de mostrador."],
   [/operation model comes from your plan/i, "El tipo de operación depende de tu plan. Para cambiarlo hay que cambiar de plan."],

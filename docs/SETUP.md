@@ -214,6 +214,13 @@ Administración (SQL Editor):
 update public.tenants set plan = 'walk_in', operation_model = 'walk_in' where slug = 'mi-lavanderia';
 ```
 
+## 5g. Cancelar y eliminar órdenes
+
+Requiere la migración `20261005000001_cancel_and_delete_orders.sql`.
+
+- **Cancelar orden** (menú ⋮ de la orden) funciona en cualquier momento antes de entregarla, también si está Lista o En camino. Se cancelan sus recolecciones/entregas pendientes y se devuelven los puntos usados.
+- **Eliminar orden** (dueño y gerente) la borra por completo, por ejemplo si se creó por error o era de prueba. Pide un motivo, que queda en la Bitácora. Solo se puede si la orden no tiene pagos; si los tiene, hay que cancelarla y reembolsar para que la caja cuadre.
+
 ## 6. Desarrollo local
 
 Con Docker instalado:
