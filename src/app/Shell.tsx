@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { ErrorBoundary } from "./resilience";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import type { Permission } from "../domain/permissions";
 import { useAuth, useTenant } from "../lib/session";
-import { Icon, IconButton, Menu, initials } from "../ui/components";
+import { Icon, IconButton, Loading, Menu, initials } from "../ui/components";
 import { PlanNotice } from "../features/plan/Plan";
 
 export interface NavItem {
@@ -152,6 +153,7 @@ export function AccountMenu() {
 
 export function Shell() {
   const nav = useNav();
+  const { pathname } = useLocation();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 4);
@@ -169,7 +171,12 @@ export function Shell() {
         ))}
       </nav>
       <div className="main" data-scrolled={scrolled}>
-        <Outlet />
+        {/* Keyed by route: an error on one screen doesn't stick when navigating away. */}
+        <ErrorBoundary key={pathname}>
+          <Suspense fallback={<Loading />}>
+            <Outlet />
+          </Suspense>
+        </ErrorBoundary>
       </div>
       <nav className="bottom-nav" aria-label="Principal">
         {(nav.length > 5 ? nav.slice(0, 4) : nav).map((n) => (

@@ -1,4 +1,5 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import { ErrorBoundary, lazyPage } from "./resilience";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import type { Permission } from "../domain/permissions";
 import { useAuth, useTenant } from "../lib/session";
@@ -7,22 +8,22 @@ import { ForgotPage, InvitePage, LoginPage, OnboardingPage, ResetPage, SignupPag
 import { NAV, Shell } from "./Shell";
 import { ReadOnlyPage, useBlockedByPlan } from "../features/plan/Plan";
 
-const AnalyticsPage = lazy(() => import("../features/analytics/Analytics").then((m) => ({ default: m.AnalyticsPage })));
-const AuditPage = lazy(() => import("../features/audit/Audit").then((m) => ({ default: m.AuditPage })));
-const CatalogPage = lazy(() => import("../features/catalog/Catalog").then((m) => ({ default: m.CatalogPage })));
-const CourierApp = lazy(() => import("../features/courier/CourierApp").then((m) => ({ default: m.CourierApp })));
-const CustomerDetail = lazy(() => import("../features/customers/Customers").then((m) => ({ default: m.CustomerDetail })));
-const CustomersList = lazy(() => import("../features/customers/Customers").then((m) => ({ default: m.CustomersList })));
-const Dashboard = lazy(() => import("../features/dashboard/Dashboard").then((m) => ({ default: m.Dashboard })));
-const DeliveryPlanner = lazy(() => import("../features/delivery/DeliveryPlanner").then((m) => ({ default: m.DeliveryPlanner })));
-const OrderDetail = lazy(() => import("../features/orders/OrderDetail").then((m) => ({ default: m.OrderDetail })));
-const OrderEditor = lazy(() => import("../features/orders/OrderEditor").then((m) => ({ default: m.OrderEditor })));
-const OrdersList = lazy(() => import("../features/orders/OrdersList").then((m) => ({ default: m.OrdersList })));
-const PaymentsPage = lazy(() => import("../features/payments/Payments").then((m) => ({ default: m.PaymentsPage })));
-const ProductionBoard = lazy(() => import("../features/production/ProductionBoard").then((m) => ({ default: m.ProductionBoard })));
-const SettingsPage = lazy(() => import("../features/settings/Settings").then((m) => ({ default: m.SettingsPage })));
-const TeamPage = lazy(() => import("../features/team/Team").then((m) => ({ default: m.TeamPage })));
-const TrackingPage = lazy(() => import("../features/tracking/Tracking").then((m) => ({ default: m.TrackingPage })));
+const AnalyticsPage = lazyPage(() => import("../features/analytics/Analytics").then((m) => ({ default: m.AnalyticsPage })));
+const AuditPage = lazyPage(() => import("../features/audit/Audit").then((m) => ({ default: m.AuditPage })));
+const CatalogPage = lazyPage(() => import("../features/catalog/Catalog").then((m) => ({ default: m.CatalogPage })));
+const CourierApp = lazyPage(() => import("../features/courier/CourierApp").then((m) => ({ default: m.CourierApp })));
+const CustomerDetail = lazyPage(() => import("../features/customers/Customers").then((m) => ({ default: m.CustomerDetail })));
+const CustomersList = lazyPage(() => import("../features/customers/Customers").then((m) => ({ default: m.CustomersList })));
+const Dashboard = lazyPage(() => import("../features/dashboard/Dashboard").then((m) => ({ default: m.Dashboard })));
+const DeliveryPlanner = lazyPage(() => import("../features/delivery/DeliveryPlanner").then((m) => ({ default: m.DeliveryPlanner })));
+const OrderDetail = lazyPage(() => import("../features/orders/OrderDetail").then((m) => ({ default: m.OrderDetail })));
+const OrderEditor = lazyPage(() => import("../features/orders/OrderEditor").then((m) => ({ default: m.OrderEditor })));
+const OrdersList = lazyPage(() => import("../features/orders/OrdersList").then((m) => ({ default: m.OrdersList })));
+const PaymentsPage = lazyPage(() => import("../features/payments/Payments").then((m) => ({ default: m.PaymentsPage })));
+const ProductionBoard = lazyPage(() => import("../features/production/ProductionBoard").then((m) => ({ default: m.ProductionBoard })));
+const SettingsPage = lazyPage(() => import("../features/settings/Settings").then((m) => ({ default: m.SettingsPage })));
+const TeamPage = lazyPage(() => import("../features/team/Team").then((m) => ({ default: m.TeamPage })));
+const TrackingPage = lazyPage(() => import("../features/tracking/Tracking").then((m) => ({ default: m.TrackingPage })));
 
 /** Signed in and member of a tenant; otherwise send to login / onboarding. */
 function RequireTenant({ children }: { children: ReactNode }) {
@@ -70,6 +71,7 @@ function Home() {
 export function App() {
   return (
     <BrowserRouter>
+      <ErrorBoundary>
       <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -114,6 +116,7 @@ export function App() {
         </Route>
       </Routes>
       </Suspense>
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
