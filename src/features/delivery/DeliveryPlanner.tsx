@@ -24,7 +24,7 @@ export function DeliveryPlanner() {
 /** Counter-only businesses have no pickups or deliveries. */
 export function CounterOnly() {
   return (
-    <Page title="Entregas">
+    <Page title="Ruta">
       <Empty icon="storefront" title="Tu lavandería es solo mostrador">
         No maneja recolecciones ni entregas. Puedes cambiar el tipo de operación en Ajustes → Plan.
       </Empty>

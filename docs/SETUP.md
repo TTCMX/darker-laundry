@@ -221,6 +221,13 @@ Requiere la migración `20261005000001_cancel_and_delete_orders.sql`.
 - **Cancelar orden** (menú ⋮ de la orden) funciona en cualquier momento antes de entregarla, también si está Lista o En camino. Se cancelan sus recolecciones/entregas pendientes y se devuelven los puntos usados.
 - **Eliminar orden** (dueño y gerente) la borra por completo, por ejemplo si se creó por error o era de prueba. Pide un motivo, que queda en la Bitácora. Solo se puede si la orden no tiene pagos; si los tiene, hay que cancelarla y reembolsar para que la caja cuadre.
 
+## 5h. Cómo se usa el día a día
+
+- **Menú**: Inicio, Pedidos, Clientes, Ruta y Ventas arriba; Pagos, Archivo, Catálogo, Equipo, Ajustes y Bitácora en *Back office*. En el teléfono: pestañas abajo (lo que no cabe está en *Más*) y el botón naranja **+** para crear una orden.
+- **Pedidos** es el tablero de todo el ciclo: Por recolectar → Por capturar → cada fase de producción → Listas → En ruta → Entregadas hoy. Para mover una orden un paso: el botón de la tarjeta, deslizar a la derecha (avanzar) o a la izquierda (regresar) en el teléfono, o arrastrarla a otra columna en la computadora. *Me toca ahora* deja solo lo que te toca trabajar.
+- Al tocar una orden (en el tablero, Inicio, Clientes, Archivo o Ventas) se abre encima de la pantalla en la que estás; al cerrarla regresas a donde estabas. Un enlace directo a la orden la abre como página completa.
+- **Archivo** busca cualquier orden, incluidas las entregadas y canceladas.
+
 ## 6. Desarrollo local
 
 Con Docker instalado:

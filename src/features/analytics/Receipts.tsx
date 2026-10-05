@@ -1,6 +1,7 @@
+import { useSheetNavigate } from "../../app/sheet";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ORDER_STATUSES, ORDER_STATUS_LABEL, type OrderStatus } from "../../domain/orders";
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, type OrderPaymentStatus, type PaymentMethod } from "../../domain/payments";
 import { dateTime, money, zonedStart } from "../../lib/format";
@@ -71,7 +72,7 @@ const RECEIPT_COLUMNS =
 export function ReceiptsReport({ range }: { range: DateRange }) {
   const { tenantId, tenant, ops } = useTenant();
   const name = useMemberNames();
-  const navigate = useNavigate();
+  const openOrder = useSheetNavigate();
   const [f, setF] = useState<ReceiptFilters>({ status: "", payment: "", fulfillment: "", search: "" });
   const search = useDebounced(f.search.trim());
   const [page, setPage] = useState(0);
@@ -208,7 +209,7 @@ export function ReceiptsReport({ range }: { range: DateRange }) {
                 </thead>
                 <tbody>
                   {list.data.rows.map((r) => (
-                    <tr key={r.id} className="clickable" onClick={() => navigate(`/orders/${r.id}`)}>
+                    <tr key={r.id} className="clickable" onClick={() => openOrder(`/orders/${r.id}`)}>
                       <td className="nowrap">
                         <Link to={`/orders/${r.id}`} onClick={(e) => e.stopPropagation()}>
                           #{r.number}

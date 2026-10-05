@@ -2,6 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Page } from "../../app/Shell";
+import { useSheet, useSheetNavigate } from "../../app/sheet";
+import { nextMove, prevMove } from "../../domain/flow";
+import { useMoveOrder } from "./useMoveOrder";
 import { NOTIFICATION_EVENT_LABEL, type NotificationEvent } from "../../domain/templates";
 import { ORDER_STATUS_LABEL, isOpenStatus, type OrderStatus } from "../../domain/orders";
 import { PAYMENT_METHOD_LABEL } from "../../domain/payments";
@@ -96,6 +99,9 @@ export function OrderDetail() {
   const q = useOrderBundle(id);
   const photoRows = useOrderPhotos(id);
   const navigate = useNavigate();
+  const sheetNavigate = useSheetNavigate();
+  const sheet = useSheet();
+  const { run: runMove, pendingId: movingId } = useMoveOrder();
   const toast = useToast();
   const { user } = useAuth();
   const { can, settings, tenantId, ops } = useTenant();
@@ -170,8 +176,24 @@ export function OrderDetail() {
     deliveries.reduce((n, d) => n + d.proof_paths.length, 0) +
     issues.reduce((n, i) => n + i.photo_paths.length, 0);
   const captureItems = (
-    <Button icon="edit_note" onClick={() => navigate(`/orders/${id}/edit`)}>
+    <Button icon="edit_note" onClick={() => sheetNavigate(`/orders/${id}/edit`)}>
       Capturar servicios
+    </Button>
+  );
+
+  // Same advance / go back as the board (one step at a time).
+  const flowOrder = { status: order.status, fulfillment: order.fulfillment, current_step_id: order.current_step_id, items: items.length, steps, deliveries };
+  const flowAccess = { ...actor, can };
+  const next = nextMove(flowOrder, flowAccess);
+  const prev = prevMove(flowOrder, flowAccess);
+  const advance = next && next.move.kind !== "capture" && (
+    <Button icon="arrow_forward" onClick={() => runMove(order, next)} loading={movingId === order.id}>
+      {next.label}
+    </Button>
+  );
+  const back = prev && (
+    <Button variant="outlined" icon="undo" onClick={() => runMove(order, prev, true)} disabled={movingId === order.id}>
+      {prev.label}
     </Button>
   );
 
@@ -211,9 +233,8 @@ export function OrderDetail() {
       case "in_production":
         return (
           <>
-            <Link className="btn tonal" to="/production">
-              <Icon name="view_kanban" /> Tablero
-            </Link>
+            {back}
+            {advance}
             {can("production.manage") && (
               <Button variant="outlined" icon="check_circle" onClick={() => setStatus.mutate({ status: "ready" })}>
                 Marcar lista
@@ -221,9 +242,13 @@ export function OrderDetail() {
             )}
           </>
         );
+      case "out_for_delivery":
+        return advance;
       case "ready":
         return (
           <>
+            {back}
+            {order.fulfillment === "delivery" && advance}
             {order.fulfillment === "delivery" && ops.delivery && !delivery && (
               <Button variant="tonal" icon="local_shipping" onClick={() => setScheduling("delivery")}>
                 Programar entrega
@@ -259,14 +284,14 @@ export function OrderDetail() {
       actions={
         <>
         {can("orders.edit") && order.status !== "cancelled" && (
-          <IconButton icon="edit" label="Editar orden" onClick={() => navigate(`/orders/${id}/edit`)} />
+          <IconButton icon="edit" label="Editar orden" onClick={() => sheetNavigate(`/orders/${id}/edit`)} />
         )}
         <PrintReceiptButton bundle={q.data} link={link} />
         <Menu trigger={(toggle) => <IconButton icon="more_vert" label="Más acciones" onClick={toggle} />}>
           {(close) => (
             <>
               {can("orders.edit") && order.status !== "cancelled" && (
-                <button onClick={() => navigate(`/orders/${id}/edit`)}>
+                <button onClick={() => sheetNavigate(`/orders/${id}/edit`)}>
                   <Icon name="edit" /> Editar servicios y precio
                 </button>
               )}
@@ -839,7 +864,8 @@ export function OrderDetail() {
           remove.mutate(reason, {
             onSuccess: () => {
               setDeleting(false);
-              navigate("/orders", { replace: true });
+              if (sheet) sheet.close();
+              else navigate("/orders", { replace: true });
             },
           })
         }

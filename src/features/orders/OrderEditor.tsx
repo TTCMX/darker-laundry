@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Page } from "../../app/Shell";
+import { useSheetNavigate } from "../../app/sheet";
 import { deliveryRule } from "../../domain/delivery";
 import { pointsEarned } from "../../domain/loyalty";
 import { PRIORITY_LABEL, type OrderPriority } from "../../domain/orders";
@@ -131,6 +132,7 @@ export function OrderEditor() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const sheetNavigate = useSheetNavigate();
   const qc = useQueryClient();
   const toast = useToast();
   const { tenantId, settings, can, ops } = useTenant();
@@ -400,7 +402,7 @@ export function OrderEditor() {
             : `Orden #${r.order.number} creada${schedulePickup ? " y recolección agendada" : ""}${rejected ? ` (${rejected} descuento no aplicó)` : ""}`,
         );
       api("/api/notifications/dispatch", { tenant_id: tenantId }).catch(() => {});
-      navigate(`/orders/${r.order.id}`, { replace: true });
+      sheetNavigate(`/orders/${r.order.id}`, { replace: true });
     } catch (err) {
       setServerError(errorMessage(err));
     } finally {

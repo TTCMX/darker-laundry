@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { ErrorBoundary, lazyPage } from "./resilience";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Sheet, sheetState } from "./sheet";
 import type { Permission } from "../domain/permissions";
 import { useAuth, useTenant } from "../lib/session";
 import { Button, Empty, Loading } from "../ui/components";
@@ -20,7 +21,7 @@ const OrderDetail = lazyPage(() => import("../features/orders/OrderDetail").then
 const OrderEditor = lazyPage(() => import("../features/orders/OrderEditor").then((m) => ({ default: m.OrderEditor })));
 const OrdersList = lazyPage(() => import("../features/orders/OrdersList").then((m) => ({ default: m.OrdersList })));
 const PaymentsPage = lazyPage(() => import("../features/payments/Payments").then((m) => ({ default: m.PaymentsPage })));
-const ProductionBoard = lazyPage(() => import("../features/production/ProductionBoard").then((m) => ({ default: m.ProductionBoard })));
+const OrdersBoard = lazyPage(() => import("../features/orders/OrdersBoard").then((m) => ({ default: m.OrdersBoard })));
 const SettingsPage = lazyPage(() => import("../features/settings/Settings").then((m) => ({ default: m.SettingsPage })));
 const TeamPage = lazyPage(() => import("../features/team/Team").then((m) => ({ default: m.TeamPage })));
 const TrackingPage = lazyPage(() => import("../features/tracking/Tracking").then((m) => ({ default: m.TrackingPage })));
@@ -68,12 +69,24 @@ function Home() {
   );
 }
 
+const ORDER_DETAIL_PERMS: Permission[] = ["orders.view", "production.view", "delivery.view", "payments.view"];
+
 export function App() {
   return (
     <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  );
+}
+
+function AppRoutes() {
+  const location = useLocation();
+  // An order opened from a screen renders on top of it (see sheet.tsx).
+  const background = sheetState(location)?.background;
+  return (
       <ErrorBoundary>
       <Suspense fallback={<Loading />}>
-      <Routes>
+      <Routes location={background ?? location}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot" element={<ForgotPage />} />
@@ -99,11 +112,12 @@ export function App() {
           <Route index element={<Home />} />
           <Route path="dashboard" element={<Guard perms={["dashboard.view"]}><Dashboard /></Guard>} />
           <Route path="analytics/:tab?" element={<Guard perms={["reports.view"]}><AnalyticsPage /></Guard>} />
-          <Route path="orders" element={<Guard perms={["orders.view"]}><OrdersList /></Guard>} />
+          <Route path="orders" element={<Guard perms={["orders.view", "production.view"]}><OrdersBoard /></Guard>} />
+          <Route path="orders/archive" element={<Guard perms={["orders.view"]}><OrdersList /></Guard>} />
           <Route path="orders/new" element={<Guard perms={["orders.create"]}><OrderEditor /></Guard>} />
-          <Route path="orders/:id" element={<Guard perms={["orders.view", "production.view", "delivery.view", "payments.view"]}><OrderDetail /></Guard>} />
+          <Route path="orders/:id" element={<Guard perms={ORDER_DETAIL_PERMS}><OrderDetail /></Guard>} />
           <Route path="orders/:id/edit" element={<Guard perms={["orders.edit"]}><OrderEditor /></Guard>} />
-          <Route path="production" element={<Guard perms={["production.view"]}><ProductionBoard /></Guard>} />
+          <Route path="production" element={<Navigate to="/orders" replace />} />
           <Route path="delivery" element={<Guard perms={["delivery.view", "delivery.manage"]}><DeliveryPlanner /></Guard>} />
           <Route path="customers" element={<Guard perms={["customers.view"]}><CustomersList /></Guard>} />
           <Route path="customers/:id" element={<Guard perms={["customers.view"]}><CustomerDetail /></Guard>} />
@@ -116,7 +130,22 @@ export function App() {
         </Route>
       </Routes>
       </Suspense>
+      {background && (
+        <RequireTenant>
+          <Sheet>
+            <ErrorBoundary key={location.pathname}>
+              <Suspense fallback={<Loading />}>
+                <Routes>
+                  <Route path="/orders/new" element={<Guard perms={["orders.create"]}><OrderEditor /></Guard>} />
+                  <Route path="/orders/:id" element={<Guard perms={ORDER_DETAIL_PERMS}><OrderDetail /></Guard>} />
+                  <Route path="/orders/:id/edit" element={<Guard perms={["orders.edit"]}><OrderEditor /></Guard>} />
+                  <Route path="*" element={null} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
+          </Sheet>
+        </RequireTenant>
+      )}
       </ErrorBoundary>
-    </BrowserRouter>
   );
 }

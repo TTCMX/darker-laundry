@@ -64,7 +64,7 @@ export function AnalyticsPage() {
   const go = (t: AnalyticsTab) => navigate({ pathname: `/analytics/${t}`, search: params.toString() });
 
   return (
-    <Page title="Análisis">
+    <Page title="Ventas">
       <div className="col gap-16">
         <Tabs value={current} onChange={go} tabs={TABS} />
         <RangePicker range={range} onChange={setRange} />
