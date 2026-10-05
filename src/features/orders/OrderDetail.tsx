@@ -223,12 +223,17 @@ export function OrderDetail() {
           </>
         );
       case "picked_up":
-        return needsItems ? (
-          captureItems
-        ) : (
-          <Button icon="local_laundry_service" onClick={() => startProduction.mutate(undefined)} loading={startProduction.isPending}>
-            Enviar a producción
-          </Button>
+        return (
+          <>
+            {back}
+            {needsItems ? (
+              captureItems
+            ) : (
+              <Button icon="local_laundry_service" onClick={() => startProduction.mutate(undefined)} loading={startProduction.isPending}>
+                Enviar a producción
+              </Button>
+            )}
+          </>
         );
       case "in_production":
         return (
@@ -243,7 +248,14 @@ export function OrderDetail() {
           </>
         );
       case "out_for_delivery":
-        return advance;
+        return (
+          <>
+            {back}
+            {advance}
+          </>
+        );
+      case "delivered":
+        return back;
       case "ready":
         return (
           <>

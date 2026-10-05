@@ -248,7 +248,7 @@ export function OrdersBoard() {
                         key={o.id}
                         order={o}
                         next={col.key === "delivered" ? null : nextMove(flow(o), actor)}
-                        prev={col.key === "delivered" ? null : prevMove(flow(o), actor)}
+                        prev={prevMove(flow(o), actor)}
                         busy={pendingId === o.id}
                         stepWho={(() => {
                           const s = o.status === "in_production" ? o.order_production_steps.find((x) => x.id === o.current_step_id) : null;
@@ -271,7 +271,7 @@ export function OrdersBoard() {
                           setDragging(null);
                           setOver(null);
                         }}
-                        draggable={col.key !== "delivered"}
+                        draggable
                       />
                     ))
                   ))}
