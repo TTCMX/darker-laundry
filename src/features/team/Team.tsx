@@ -101,7 +101,7 @@ function MemberDialog({ member, roles, onClose }: { member: TeamMember; roles: {
 }
 
 function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { tenantId, tenant } = useTenant();
+  const { tenantId, tenant, ops } = useTenant();
   const roles = useRoles();
   const toast = useToast();
   const [email, setEmail] = useState("");
@@ -161,7 +161,7 @@ function InviteDialog({ open, onClose }: { open: boolean; onClose: () => void })
         <div className="col gap-16">
           <TextField label="Nombre" value={name} onChange={(e) => setName(e.target.value)} />
           <TextField label="Correo (opcional)" type="email" value={email} onChange={(e) => setEmail(e.target.value)} hint="Si lo indicas, solo esa cuenta podrá aceptar" />
-          <Select label="Rol" value={role} onChange={(e) => setRole(e.target.value)} options={(roles.data ?? []).map((r) => ({ value: r.id, label: r.name }))} />
+          <Select label="Rol" value={role} onChange={(e) => setRole(e.target.value)} options={(roles.data ?? []).filter((r) => ops.delivery || r.home !== "courier").map((r) => ({ value: r.id, label: r.name }))} />
         </div>
       )}
     </Dialog>
@@ -265,7 +265,7 @@ function RoleDialog({
   role: { id: string | null; name: string; description: string; home: "backoffice" | "courier"; permissions: string[] };
   onClose: () => void;
 }) {
-  const { tenantId } = useTenant();
+  const { tenantId, ops } = useTenant();
   const [name, setName] = useState(role.name);
   const [description, setDescription] = useState(role.description);
   const [home, setHome] = useState(role.home);
@@ -307,7 +307,7 @@ function RoleDialog({
             onChange={(e) => setHome(e.target.value as "backoffice" | "courier")}
             options={[
               { value: "backoffice", label: "Back office" },
-              { value: "courier", label: "App de courier" },
+              ...(ops.delivery ? [{ value: "courier", label: "App de courier" }] : []),
             ]}
           />
         </div>

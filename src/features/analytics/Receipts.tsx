@@ -1,6 +1,7 @@
+import { useSheetNavigate } from "../../app/sheet";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ORDER_STATUSES, ORDER_STATUS_LABEL, type OrderStatus } from "../../domain/orders";
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, type OrderPaymentStatus, type PaymentMethod } from "../../domain/payments";
 import { dateTime, money, zonedStart } from "../../lib/format";
@@ -69,9 +70,9 @@ const RECEIPT_COLUMNS =
   "id, number, created_at, status, payment_status, fulfillment, subtotal_cents, discount_cents, loyalty_credit_cents, delivery_fee_cents, tax_cents, total_cents, amount_paid_cents, balance_cents, created_by, customers!inner(name, phone)";
 
 export function ReceiptsReport({ range }: { range: DateRange }) {
-  const { tenantId, tenant } = useTenant();
+  const { tenantId, tenant, ops } = useTenant();
   const name = useMemberNames();
-  const navigate = useNavigate();
+  const openOrder = useSheetNavigate();
   const [f, setF] = useState<ReceiptFilters>({ status: "", payment: "", fulfillment: "", search: "" });
   const search = useDebounced(f.search.trim());
   const [page, setPage] = useState(0);
@@ -176,11 +177,13 @@ export function ReceiptsReport({ range }: { range: DateRange }) {
               </option>
             ))}
           </select>
+          {ops.hybrid && (
           <select className="input sm" value={f.fulfillment} onChange={(e) => setF({ ...f, fulfillment: e.target.value as ReceiptFilters["fulfillment"] })} aria-label="Tipo">
             <option value="">Mostrador y domicilio</option>
             <option value="walk_in">Mostrador</option>
             <option value="delivery">Domicilio</option>
           </select>
+          )}
         </div>
         {list.error ? (
           <ReportError error={list.error} />
@@ -206,7 +209,7 @@ export function ReceiptsReport({ range }: { range: DateRange }) {
                 </thead>
                 <tbody>
                   {list.data.rows.map((r) => (
-                    <tr key={r.id} className="clickable" onClick={() => navigate(`/orders/${r.id}`)}>
+                    <tr key={r.id} className="clickable" onClick={() => openOrder(`/orders/${r.id}`)}>
                       <td className="nowrap">
                         <Link to={`/orders/${r.id}`} onClick={(e) => e.stopPropagation()}>
                           #{r.number}

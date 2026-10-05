@@ -35,8 +35,8 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   scheduled: ["picked_up", "in_production", "cancelled"],
   picked_up: ["in_production", "cancelled"],
   in_production: ["ready", "cancelled"],
-  ready: ["out_for_delivery", "delivered", "in_production"],
-  out_for_delivery: ["delivered", "ready"],
+  ready: ["out_for_delivery", "delivered", "in_production", "cancelled"],
+  out_for_delivery: ["delivered", "ready", "cancelled"],
   delivered: [],
   cancelled: [],
 };

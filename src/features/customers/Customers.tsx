@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Page } from "../../app/Shell";
+import { useSheetNavigate } from "../../app/sheet";
 import { CUSTOMER_STATUS_LABEL, type CustomerStatus } from "../../domain/customers";
 import { normalizePhone } from "../../domain/phone";
 import { whatsappLink } from "../../domain/notifications";
@@ -16,8 +17,9 @@ import { AddressDialog, CustomerDialog, formatAddress, mapsUrl } from "./Custome
 import { ImportCustomersDialog } from "./import/ImportCustomers";
 
 export function CustomersList() {
-  const { tenantId, tenant, can } = useTenant();
+  const { tenantId, tenant, can, settings } = useTenant();
   const navigate = useNavigate();
+  const sheetNavigate = useSheetNavigate();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<CustomerStatus | "all" | "balance">("all");
   const [creating, setCreating] = useState(false);
@@ -48,11 +50,16 @@ export function CustomersList() {
   return (
     <Page
       title="Clientes"
+      fab
       actions={
         can("customers.edit") && (
-          <Button variant="outlined" icon="upload_file" onClick={() => setImporting(true)}>
-            Importar
-          </Button>
+          <>
+            <IconButton icon="upload_file" label="Importar clientes" onClick={() => setImporting(true)} />
+            <Button variant="outlined" icon="person_add" onClick={() => setCreating(true)}>
+              <span className="desktop-only">Nuevo cliente</span>
+              <span className="mobile-only">Nuevo</span>
+            </Button>
+          </>
         )
       }
     >
@@ -74,10 +81,10 @@ export function CustomersList() {
             Con saldo
           </Chip>
         </div>
-        <div className="card flush">
-          {q.isLoading ? (
-            <Loading />
-          ) : !q.data?.length ? (
+        {q.isLoading ? (
+          <Loading />
+        ) : !q.data?.length ? (
+          <div className="card">
             <Empty icon="group" title="Sin clientes">
               {can("customers.edit") && !search && status === "all" && (
                 <Button variant="tonal" icon="upload_file" onClick={() => setImporting(true)}>
@@ -85,35 +92,58 @@ export function CustomersList() {
                 </Button>
               )}
             </Empty>
-          ) : (
-            <div className="list">
-              {q.data.map((c) => (
-                <div key={c.id} className="list-item clickable" onClick={() => navigate(`/customers/${c.id}`)}>
-                  <span className="lead">{initials(c.name)}</span>
+          </div>
+        ) : (
+          <div className="ccards">
+            {q.data.map((c) => (
+              <article key={c.id} className="ccard" onClick={() => navigate(`/customers/${c.id}`)}>
+                <div className="row gap-12">
+                  <span className={`cavatar s-${c.status}`}>{initials(c.name)}</span>
                   <div className="grow">
-                    <div className="headline">{c.name}</div>
-                    <div className="supporting truncate">
-                      {[c.phone, c.email].filter(Boolean).join(" · ") || "Sin contacto"}
-                      {c.last_order_at && ` · última orden ${relative(c.last_order_at)}`}
-                    </div>
+                    <div className="cname truncate">{c.name}</div>
+                    <div className="body-s muted truncate">{[c.phone, c.email].filter(Boolean).join(" · ") || "Sin contacto"}</div>
                   </div>
-                  <div className="trailing col gap-4" style={{ alignItems: "flex-end" }}>
-                    <CustomerStatusBadge status={c.status} />
-                    <span className="body-s muted num">
-                      {c.total_orders} órdenes · {money(c.lifetime_spend_cents)}
-                    </span>
-                  </div>
+                  <CustomerStatusBadge status={c.status} />
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <div className="cstats">
+                  <span>
+                    <strong className="num">{c.total_orders}</strong> pedidos
+                  </span>
+                  <span>
+                    <strong className="num">{money(c.lifetime_spend_cents)}</strong> total
+                  </span>
+                  {settings.loyalty.enabled && (
+                    <span>
+                      <strong className="num">{c.points_balance}</strong> pts
+                    </span>
+                  )}
+                  {c.balance_due_cents > 0 && <span className="error-text">debe {money(c.balance_due_cents)}</span>}
+                </div>
+                {c.notes && (
+                  <div className="knote">
+                    <Icon name="sticky_note_2" /> <span className="truncate">{c.notes}</span>
+                  </div>
+                )}
+                <div className="row between">
+                  <span className="body-s muted">{c.last_order_at ? `Último pedido ${relative(c.last_order_at)}` : "Sin pedidos aún"}</span>
+                  <span className="row gap-4" onClick={(e) => e.stopPropagation()}>
+                    {c.phone_normalized && (
+                      <a className="icon-btn" href={whatsappLink(c.phone_normalized, `Hola ${c.name.split(" ")[0]}`)} target="_blank" rel="noreferrer" title="WhatsApp" aria-label="WhatsApp">
+                        <Icon name="chat" />
+                      </a>
+                    )}
+                    {can("orders.create") && (
+                      <button className="btn tonal sm" onClick={() => sheetNavigate(`/orders/new?customer=${c.id}`)}>
+                        <Icon name="add" /> Pedido
+                      </button>
+                    )}
+                  </span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
-      {can("customers.edit") && (
-        <button className="fab" onClick={() => setCreating(true)}>
-          <Icon name="person_add" /> Nuevo cliente
-        </button>
-      )}
       <ImportCustomersDialog open={importing} onClose={() => setImporting(false)} />
       <CustomerDialog
         open={creating}

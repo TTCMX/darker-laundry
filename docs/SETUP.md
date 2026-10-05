@@ -196,6 +196,38 @@ update public.tenants set trial_ends_at = trial_ends_at + interval '1 month' whe
 update public.tenants set plan = 'internal' where slug = 'mi-lavanderia';
 ```
 
+## 5f. Tipo de operación (mostrador, domicilio o híbrida)
+
+Requiere la migración `20261003000001_operation_model.sql`.
+
+- Se elige al crear el negocio y se ve en **Ajustes → Plan**:
+  - **Solo mostrador:** sin recolecciones, entregas, rutas, zonas de entrega ni couriers.
+  - **Todo a domicilio:** cada orden lleva recolección y entrega; no hay "entregar en mostrador".
+  - **Híbrida:** ambas, con la etiqueta A domicilio / Mostrador en cada orden.
+- La app oculta lo que no aplica y la base de datos lo rechaza (no se pueden crear órdenes ni paradas del tipo que no corresponde). Las órdenes que ya existían siguen funcionando.
+- **Va con el plan:** durante la prueba gratis (y en negocios `internal`) el dueño lo cambia cuando quiera, siempre que no queden órdenes abiertas del tipo que se quita. Con un plan pagado queda fijo y se cambia cambiando de plan. Los negocios que ya existían quedan como **Híbrida**.
+
+Administración (SQL Editor):
+
+```sql
+-- Pasar un negocio a un plan pagado de solo mostrador (o 'delivery' / 'hybrid')
+update public.tenants set plan = 'walk_in', operation_model = 'walk_in' where slug = 'mi-lavanderia';
+```
+
+## 5g. Cancelar y eliminar órdenes
+
+Requiere la migración `20261005000001_cancel_and_delete_orders.sql`.
+
+- **Cancelar orden** (menú ⋮ de la orden) funciona en cualquier momento antes de entregarla, también si está Lista o En camino. Se cancelan sus recolecciones/entregas pendientes y se devuelven los puntos usados.
+- **Eliminar orden** (dueño y gerente) la borra por completo, por ejemplo si se creó por error o era de prueba. Pide un motivo, que queda en la Bitácora. Solo se puede si la orden no tiene pagos; si los tiene, hay que cancelarla y reembolsar para que la caja cuadre.
+
+## 5h. Cómo se usa el día a día
+
+- **Menú**: Inicio, Pedidos, Clientes, Ruta y Ventas arriba; Pagos, Archivo, Catálogo, Equipo, Ajustes y Bitácora en *Back office*. En el teléfono: pestañas abajo (lo que no cabe está en *Más*) y el botón naranja **+** para crear una orden.
+- **Pedidos** es el tablero de todo el ciclo: Por recolectar → Por capturar → cada fase de producción → Listas → En ruta → Entregadas hoy. Para mover una orden un paso: el botón de la tarjeta, deslizar a la derecha (avanzar) o a la izquierda (regresar) en el teléfono, o arrastrarla a otra columna en la computadora. *Me toca ahora* deja solo lo que te toca trabajar.
+- Al tocar una orden (en el tablero, Inicio, Clientes, Archivo o Ventas) se abre encima de la pantalla en la que estás; al cerrarla regresas a donde estabas. Un enlace directo a la orden la abre como página completa.
+- **Archivo** busca cualquier orden, incluidas las entregadas y canceladas.
+
 ## 6. Desarrollo local
 
 Con Docker instalado:

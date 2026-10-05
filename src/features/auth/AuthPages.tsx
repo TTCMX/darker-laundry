@@ -1,3 +1,5 @@
+import { OperationPicker } from "../plan/Plan";
+import type { OperationModel } from "../../domain/operation";
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -217,6 +219,7 @@ export function OnboardingPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(false);
+  const [model, setModel] = useState<OperationModel>("hybrid");
 
   if (!user) return <Navigate to="/login?next=/onboarding" replace />;
   if (loading) return <Loading />;
@@ -235,6 +238,7 @@ export function OnboardingPage() {
         p_currency: currency,
         p_timezone: timezone,
       });
+      if (model !== "hybrid") await rpc("set_operation_model", { p_tenant: id, p_model: model });
       setCreated(true);
       await refresh();
       switchTenant(id);
@@ -271,6 +275,10 @@ export function OnboardingPage() {
           required
         />
         <TextField label="Tu nombre" value={display} onChange={(e) => setDisplay(e.target.value)} required />
+        <div className="col gap-8">
+          <span className="title-s">¿Cómo trabaja tu lavandería?</span>
+          <OperationPicker value={model} onChange={setModel} />
+        </div>
         <div className="grid cols-2">
           <Select
             label="País"

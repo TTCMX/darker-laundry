@@ -16,6 +16,23 @@ import { EditStopDialog } from "../orders/OrderDialogs";
 type Stop = Delivery & { orders: { id: string; number: number; status: OrderStatus; balance_cents: number; customers: { name: string; phone: string | null } } };
 
 export function DeliveryPlanner() {
+  const { ops } = useTenant();
+  if (!ops.delivery) return <CounterOnly />;
+  return <Planner />;
+}
+
+/** Counter-only businesses have no pickups or deliveries. */
+export function CounterOnly() {
+  return (
+    <Page title="Ruta">
+      <Empty icon="storefront" title="Tu lavandería es solo mostrador">
+        No maneja recolecciones ni entregas. Puedes cambiar el tipo de operación en Ajustes → Plan.
+      </Empty>
+    </Page>
+  );
+}
+
+function Planner() {
   const { tenantId, can } = useTenant();
   const name = useMemberNames();
   const team = useTeam();

@@ -1,5 +1,7 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
+import { ErrorBoundary, lazyPage } from "./resilience";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Sheet, sheetState } from "./sheet";
 import type { Permission } from "../domain/permissions";
 import { useAuth, useTenant } from "../lib/session";
 import { Button, Empty, Loading } from "../ui/components";
@@ -7,22 +9,22 @@ import { ForgotPage, InvitePage, LoginPage, OnboardingPage, ResetPage, SignupPag
 import { NAV, Shell } from "./Shell";
 import { ReadOnlyPage, useBlockedByPlan } from "../features/plan/Plan";
 
-const AnalyticsPage = lazy(() => import("../features/analytics/Analytics").then((m) => ({ default: m.AnalyticsPage })));
-const AuditPage = lazy(() => import("../features/audit/Audit").then((m) => ({ default: m.AuditPage })));
-const CatalogPage = lazy(() => import("../features/catalog/Catalog").then((m) => ({ default: m.CatalogPage })));
-const CourierApp = lazy(() => import("../features/courier/CourierApp").then((m) => ({ default: m.CourierApp })));
-const CustomerDetail = lazy(() => import("../features/customers/Customers").then((m) => ({ default: m.CustomerDetail })));
-const CustomersList = lazy(() => import("../features/customers/Customers").then((m) => ({ default: m.CustomersList })));
-const Dashboard = lazy(() => import("../features/dashboard/Dashboard").then((m) => ({ default: m.Dashboard })));
-const DeliveryPlanner = lazy(() => import("../features/delivery/DeliveryPlanner").then((m) => ({ default: m.DeliveryPlanner })));
-const OrderDetail = lazy(() => import("../features/orders/OrderDetail").then((m) => ({ default: m.OrderDetail })));
-const OrderEditor = lazy(() => import("../features/orders/OrderEditor").then((m) => ({ default: m.OrderEditor })));
-const OrdersList = lazy(() => import("../features/orders/OrdersList").then((m) => ({ default: m.OrdersList })));
-const PaymentsPage = lazy(() => import("../features/payments/Payments").then((m) => ({ default: m.PaymentsPage })));
-const ProductionBoard = lazy(() => import("../features/production/ProductionBoard").then((m) => ({ default: m.ProductionBoard })));
-const SettingsPage = lazy(() => import("../features/settings/Settings").then((m) => ({ default: m.SettingsPage })));
-const TeamPage = lazy(() => import("../features/team/Team").then((m) => ({ default: m.TeamPage })));
-const TrackingPage = lazy(() => import("../features/tracking/Tracking").then((m) => ({ default: m.TrackingPage })));
+const AnalyticsPage = lazyPage(() => import("../features/analytics/Analytics").then((m) => ({ default: m.AnalyticsPage })));
+const AuditPage = lazyPage(() => import("../features/audit/Audit").then((m) => ({ default: m.AuditPage })));
+const CatalogPage = lazyPage(() => import("../features/catalog/Catalog").then((m) => ({ default: m.CatalogPage })));
+const CourierApp = lazyPage(() => import("../features/courier/CourierApp").then((m) => ({ default: m.CourierApp })));
+const CustomerDetail = lazyPage(() => import("../features/customers/Customers").then((m) => ({ default: m.CustomerDetail })));
+const CustomersList = lazyPage(() => import("../features/customers/Customers").then((m) => ({ default: m.CustomersList })));
+const Dashboard = lazyPage(() => import("../features/dashboard/Dashboard").then((m) => ({ default: m.Dashboard })));
+const DeliveryPlanner = lazyPage(() => import("../features/delivery/DeliveryPlanner").then((m) => ({ default: m.DeliveryPlanner })));
+const OrderDetail = lazyPage(() => import("../features/orders/OrderDetail").then((m) => ({ default: m.OrderDetail })));
+const OrderEditor = lazyPage(() => import("../features/orders/OrderEditor").then((m) => ({ default: m.OrderEditor })));
+const OrdersList = lazyPage(() => import("../features/orders/OrdersList").then((m) => ({ default: m.OrdersList })));
+const PaymentsPage = lazyPage(() => import("../features/payments/Payments").then((m) => ({ default: m.PaymentsPage })));
+const OrdersBoard = lazyPage(() => import("../features/orders/OrdersBoard").then((m) => ({ default: m.OrdersBoard })));
+const SettingsPage = lazyPage(() => import("../features/settings/Settings").then((m) => ({ default: m.SettingsPage })));
+const TeamPage = lazyPage(() => import("../features/team/Team").then((m) => ({ default: m.TeamPage })));
+const TrackingPage = lazyPage(() => import("../features/tracking/Tracking").then((m) => ({ default: m.TrackingPage })));
 
 /** Signed in and member of a tenant; otherwise send to login / onboarding. */
 function RequireTenant({ children }: { children: ReactNode }) {
@@ -53,9 +55,9 @@ function Guard({ perms, children }: { perms: Permission[]; children: ReactNode }
 
 /** Landing: couriers go to their route, everyone else to their first section. */
 function Home() {
-  const { tenant, can } = useTenant();
-  if (tenant?.role_home === "courier") return <Navigate to="/courier" replace />;
-  const first = NAV.find((n) => can(...n.perms));
+  const { tenant, can, ops } = useTenant();
+  if (tenant?.role_home === "courier" && ops.delivery) return <Navigate to="/courier" replace />;
+  const first = NAV.find((n) => can(...n.perms) && (!n.delivery || ops.delivery));
   if (first) return <Navigate to={first.to} replace />;
   if (can("delivery.execute")) return <Navigate to="/courier" replace />;
   return (
@@ -67,11 +69,24 @@ function Home() {
   );
 }
 
+const ORDER_DETAIL_PERMS: Permission[] = ["orders.view", "production.view", "delivery.view", "payments.view"];
+
 export function App() {
   return (
     <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  );
+}
+
+function AppRoutes() {
+  const location = useLocation();
+  // An order opened from a screen renders on top of it (see sheet.tsx).
+  const background = sheetState(location)?.background;
+  return (
+      <ErrorBoundary>
       <Suspense fallback={<Loading />}>
-      <Routes>
+      <Routes location={background ?? location}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/forgot" element={<ForgotPage />} />
@@ -97,11 +112,12 @@ export function App() {
           <Route index element={<Home />} />
           <Route path="dashboard" element={<Guard perms={["dashboard.view"]}><Dashboard /></Guard>} />
           <Route path="analytics/:tab?" element={<Guard perms={["reports.view"]}><AnalyticsPage /></Guard>} />
-          <Route path="orders" element={<Guard perms={["orders.view"]}><OrdersList /></Guard>} />
+          <Route path="orders" element={<Guard perms={["orders.view", "production.view"]}><OrdersBoard /></Guard>} />
+          <Route path="orders/archive" element={<Guard perms={["orders.view"]}><OrdersList /></Guard>} />
           <Route path="orders/new" element={<Guard perms={["orders.create"]}><OrderEditor /></Guard>} />
-          <Route path="orders/:id" element={<Guard perms={["orders.view", "production.view", "delivery.view", "payments.view"]}><OrderDetail /></Guard>} />
+          <Route path="orders/:id" element={<Guard perms={ORDER_DETAIL_PERMS}><OrderDetail /></Guard>} />
           <Route path="orders/:id/edit" element={<Guard perms={["orders.edit"]}><OrderEditor /></Guard>} />
-          <Route path="production" element={<Guard perms={["production.view"]}><ProductionBoard /></Guard>} />
+          <Route path="production" element={<Navigate to="/orders" replace />} />
           <Route path="delivery" element={<Guard perms={["delivery.view", "delivery.manage"]}><DeliveryPlanner /></Guard>} />
           <Route path="customers" element={<Guard perms={["customers.view"]}><CustomersList /></Guard>} />
           <Route path="customers/:id" element={<Guard perms={["customers.view"]}><CustomerDetail /></Guard>} />
@@ -114,6 +130,22 @@ export function App() {
         </Route>
       </Routes>
       </Suspense>
-    </BrowserRouter>
+      {background && (
+        <RequireTenant>
+          <Sheet>
+            <ErrorBoundary key={location.pathname}>
+              <Suspense fallback={<Loading />}>
+                <Routes>
+                  <Route path="/orders/new" element={<Guard perms={["orders.create"]}><OrderEditor /></Guard>} />
+                  <Route path="/orders/:id" element={<Guard perms={ORDER_DETAIL_PERMS}><OrderDetail /></Guard>} />
+                  <Route path="/orders/:id/edit" element={<Guard perms={["orders.edit"]}><OrderEditor /></Guard>} />
+                  <Route path="*" element={null} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
+          </Sheet>
+        </RequireTenant>
+      )}
+      </ErrorBoundary>
   );
 }

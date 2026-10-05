@@ -1,8 +1,12 @@
+import { useState } from "react";
+import { OPERATION_LABEL, OPERATION_MODELS, type OperationModel } from "../../domain/operation";
 import { planInfo, TRIAL_WARNING_DAYS } from "../../domain/plan";
+import { errorMessage } from "../../lib/errors";
+import { rpc } from "../../lib/queries";
 import { dateOnly } from "../../lib/format";
 import { useTenant } from "../../lib/session";
 import type { Permission } from "../../domain/permissions";
-import { Badge, Banner, Button, Card, Empty } from "../../ui/components";
+import { Badge, Banner, Button, Card, Empty, Icon, useToast } from "../../ui/components";
 
 const SUPPORT_EMAIL = (import.meta.env.VITE_SUPPORT_EMAIL as string | undefined) || null;
 
@@ -102,5 +106,72 @@ export function ReadOnlyPage({ onHome }: { onHome: () => void }) {
         <Button onClick={onHome}>Ir al inicio</Button>
       </Empty>
     </div>
+  );
+}
+
+/** Counter only / home delivery / hybrid, as selectable cards. */
+export function OperationPicker({ value, onChange, disabled }: { value: OperationModel; onChange: (v: OperationModel) => void; disabled?: boolean }) {
+  return (
+    <div className="op-picker" role="radiogroup" aria-label="Tipo de operación">
+      {OPERATION_MODELS.map((m) => (
+        <button
+          key={m.value}
+          type="button"
+          role="radio"
+          aria-checked={value === m.value}
+          className={`op-option${value === m.value ? " on" : ""}`}
+          disabled={disabled}
+          onClick={() => onChange(m.value)}
+        >
+          <span className="op-icon">
+            <Icon name={m.icon} />
+          </span>
+          <span className="col" style={{ gap: 2, textAlign: "left" }}>
+            <span className="title-s">{m.label}</span>
+            <span className="body-s muted">{m.description}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Settings → Plan: the operation model (free during the trial, from the plan afterwards). */
+export function OperationCard() {
+  const { tenant, tenantId, can, refresh } = useTenant();
+  const toast = useToast();
+  const [saving, setSaving] = useState(false);
+  if (!tenant) return null;
+  const editable = can("settings.manage") && (tenant.plan === "trial" || tenant.plan === "internal") && tenant.access === "full";
+  const change = async (m: OperationModel) => {
+    if (m === tenant.operation_model) return;
+    setSaving(true);
+    try {
+      await rpc("set_operation_model", { p_tenant: tenantId, p_model: m });
+      await refresh();
+      toast.show(`Ahora tu lavandería es: ${OPERATION_LABEL[m]}`);
+    } catch (err) {
+      toast.show(errorMessage(err), { error: true });
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Card title="Tipo de operación">
+      <div className="col gap-16">
+        <p className="body-m muted" style={{ margin: 0 }}>
+          Define qué funciones usa tu lavandería: con <b>solo mostrador</b> no aparecen recolecciones, entregas, rutas ni couriers; con <b>todo a
+          domicilio</b> cada orden lleva recolección y entrega. Cada tipo tiene su propio plan y precio.
+        </p>
+        <OperationPicker value={tenant.operation_model} onChange={change} disabled={!editable || saving} />
+        <span className="body-s muted">
+          {editable
+            ? "Durante la prueba gratis puedes cambiarlo cuando quieras."
+            : tenant.plan === "trial" || tenant.plan === "internal"
+              ? "Solo el dueño o un administrador puede cambiarlo."
+              : "Depende de tu plan: para cambiarlo hay que cambiar de plan."}
+        </span>
+      </div>
+    </Card>
   );
 }

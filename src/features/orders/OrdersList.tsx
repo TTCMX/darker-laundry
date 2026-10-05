@@ -1,7 +1,8 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Page } from "../../app/Shell";
+import { useSheetNavigate } from "../../app/sheet";
 import { ORDER_STATUS_LABEL, type OrderStatus } from "../../domain/orders";
 import { riskLevel } from "../../domain/production";
 import { dateTime, money } from "../../lib/format";
@@ -28,8 +29,8 @@ const FILTERS: { value: Filter; label: string }[] = [
 type Row = Order & { customers: { name: string; phone: string | null } };
 
 export function OrdersList() {
-  const { tenantId, can, settings } = useTenant();
-  const navigate = useNavigate();
+  const { tenantId, settings } = useTenant();
+  const openOrder = useSheetNavigate();
   const [filter, setFilter] = useState<Filter>("open");
   const [search, setSearch] = useState("");
 
@@ -60,7 +61,7 @@ export function OrdersList() {
 
   const rows = q.data ?? [];
   return (
-    <Page title="Órdenes">
+    <Page title="Archivo" fab>
       <div className="col gap-16">
         <div className="search">
           <Icon name="search" />
@@ -118,7 +119,7 @@ export function OrdersList() {
                   {rows.map((o) => {
                     const risk = ["delivered", "cancelled"].includes(o.status) ? "normal" : riskLevel(o.promised_at, new Date(), 0, settings.operations);
                     return (
-                      <tr key={o.id} className="clickable" onClick={() => navigate(`/orders/${o.id}`)}>
+                      <tr key={o.id} className="clickable" onClick={() => openOrder(`/orders/${o.id}`)}>
                         <td className="title-s num">
                           <Link to={`/orders/${o.id}`} onClick={(e) => e.stopPropagation()}>
                             {o.number}
@@ -159,11 +160,6 @@ export function OrdersList() {
           )}
         </div>
       </div>
-      {can("orders.create") && (
-        <Link className="fab" to="/orders/new">
-          <Icon name="add" /> Nueva orden
-        </Link>
-      )}
     </Page>
   );
 }

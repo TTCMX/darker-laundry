@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Page } from "../../app/Shell";
+import { useSheetNavigate } from "../../app/sheet";
 import { deliveryRule } from "../../domain/delivery";
 import { pointsEarned } from "../../domain/loyalty";
 import { PRIORITY_LABEL, type OrderPriority } from "../../domain/orders";
@@ -131,9 +132,10 @@ export function OrderEditor() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const sheetNavigate = useSheetNavigate();
   const qc = useQueryClient();
   const toast = useToast();
-  const { tenantId, settings, can } = useTenant();
+  const { tenantId, settings, can, ops } = useTenant();
   const catalog = useCatalog();
 
   const existing = useQuery({
@@ -159,7 +161,7 @@ export function OrderEditor() {
   });
 
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [fulfillment, setFulfillment] = useState<"delivery" | "walk_in">("walk_in");
+  const [fulfillment, setFulfillment] = useState<"delivery" | "walk_in">(ops.defaultFulfillment);
   const [pickupAddress, setPickupAddress] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [zoneId, setZoneId] = useState("");
@@ -400,7 +402,7 @@ export function OrderEditor() {
             : `Orden #${r.order.number} creada${schedulePickup ? " y recolección agendada" : ""}${rejected ? ` (${rejected} descuento no aplicó)` : ""}`,
         );
       api("/api/notifications/dispatch", { tenant_id: tenantId }).catch(() => {});
-      navigate(`/orders/${r.order.id}`, { replace: true });
+      sheetNavigate(`/orders/${r.order.id}`, { replace: true });
     } catch (err) {
       setServerError(errorMessage(err));
     } finally {
@@ -429,14 +431,16 @@ export function OrderEditor() {
 
             <Card title="Servicio">
               <div className="col gap-16">
-                <Segmented
-                  value={fulfillment}
-                  onChange={setFulfillment}
-                  options={[
-                    { value: "walk_in", label: "En mostrador" },
-                    { value: "delivery", label: "Recolección y entrega" },
-                  ]}
-                />
+                {ops.hybrid && (
+                  <Segmented
+                    value={fulfillment}
+                    onChange={setFulfillment}
+                    options={[
+                      { value: "walk_in", label: "En mostrador" },
+                      { value: "delivery", label: "Recolección y entrega" },
+                    ]}
+                  />
+                )}
                 {fulfillment === "delivery" && customer && (
                   <div className="col gap-12">
                     {addresses.data?.length === 0 && <Banner tone="warning">El cliente no tiene direcciones.</Banner>}

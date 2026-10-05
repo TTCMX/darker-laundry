@@ -32,6 +32,21 @@ type CourierStop = Delivery & {
 const CLOSED = ["completed", "failed", "cancelled"];
 
 export function CourierApp() {
+  const { ops } = useTenant();
+  const navigate = useNavigate();
+  if (!ops.delivery) {
+    return (
+      <div className="center-page">
+        <Empty icon="storefront" title="Tu lavandería es solo mostrador">
+          <Button onClick={() => navigate("/")}>Ir al inicio</Button>
+        </Empty>
+      </div>
+    );
+  }
+  return <Courier />;
+}
+
+function Courier() {
   const { user } = useAuth();
   const { tenantId, tenant, can } = useTenant();
   const navigate = useNavigate();

@@ -301,6 +301,7 @@ interface EmployeesData {
 
 export function EmployeesReport({ range }: { range: DateRange }) {
   const q = useReport<EmployeesData>("analytics_employees", range);
+  const { ops } = useTenant();
   if (q.error) return <ReportError error={q.error} />;
   if (!q.data) return <Loading />;
   const d = q.data;
@@ -348,7 +349,7 @@ export function EmployeesReport({ range }: { range: DateRange }) {
                   <th className="right">Fases</th>
                   <th className="right">Tiempo prom.</th>
                   <th className="right">A tiempo</th>
-                  <th className="right">Paradas</th>
+                  {ops.delivery && <th className="right">Paradas</th>}
                   <th className="right">Incidencias</th>
                 </tr>
               </thead>
@@ -370,6 +371,7 @@ export function EmployeesReport({ range }: { range: DateRange }) {
                     <td className="right num">{m.steps ? count(m.steps) : "—"}</td>
                     <td className="right num nowrap">{minutes(m.avg_minutes)}</td>
                     <td className="right num">{m.timed_steps ? pct(m.on_time_steps, m.timed_steps) : "—"}</td>
+                    {ops.delivery && (
                     <td className="right num nowrap">
                       {m.stops_completed || m.stops_failed ? (
                         <>
@@ -380,6 +382,7 @@ export function EmployeesReport({ range }: { range: DateRange }) {
                         "—"
                       )}
                     </td>
+                    )}
                     <td className="right num nowrap">
                       {m.issues_responsible ? <span style={{ color: "var(--error)" }}>{count(m.issues_responsible)} a su cargo</span> : "—"}
                       {m.issues_reported > 0 && <div className="body-s muted">{count(m.issues_reported)} reportadas</div>}
@@ -449,6 +452,7 @@ interface OperationsData {
 
 export function OperationsReport({ range }: { range: DateRange }) {
   const q = useReport<OperationsData>("analytics_operations", range);
+  const { ops } = useTenant();
   if (q.error) return <ReportError error={q.error} />;
   if (!q.data) return <Loading />;
   const d = q.data;
@@ -456,11 +460,13 @@ export function OperationsReport({ range }: { range: DateRange }) {
     <div className="col gap-16" style={{ opacity: q.isPlaceholderData ? 0.6 : 1 }}>
       <div className="grid cols-4 kpis">
         <Kpi label="Órdenes entregadas" icon="done_all" value={count(d.delivered_orders)} />
-        <Kpi label="Entregas a tiempo" icon="schedule" value={pct(d.on_time, d.with_promise)} hint={`${count(d.on_time)} de ${count(d.with_promise)} con fecha prometida`} />
+        <Kpi label={ops.delivery ? "Entregas a tiempo" : "Listas a tiempo"} icon="schedule" value={pct(d.on_time, d.with_promise)} hint={`${count(d.on_time)} de ${count(d.with_promise)} con fecha prometida`} />
         <Kpi label="De recibida a lista" icon="local_laundry_service" value={hours(d.avg_hours_to_ready)} hint="Promedio" />
         <Kpi label="De recibida a entregada" icon="local_shipping" value={hours(d.avg_hours_to_deliver)} hint="Promedio" />
       </div>
       <div className="grid cols-2">
+        {ops.delivery && (
+          <>
         <Card title="Recolecciones y entregas programadas">
           {!d.stops.length ? (
             <Empty icon="local_shipping" title="Sin paradas en este periodo" />
@@ -490,6 +496,8 @@ export function OperationsReport({ range }: { range: DateRange }) {
         <Card title="Motivos de visitas fallidas">
           <BarList format={count} rows={d.failure_reasons.map((r) => ({ key: r.reason, label: r.reason, value: r.count, display: count(r.count) }))} empty="Ninguna visita fallida" />
         </Card>
+          </>
+        )}
         <Card title={`Cancelaciones (${count(d.cancelled)})`}>
           <BarList format={count} rows={d.cancel_reasons.map((r) => ({ key: r.reason, label: r.reason, value: r.count, display: count(r.count) }))} empty="Ninguna orden cancelada" />
         </Card>
