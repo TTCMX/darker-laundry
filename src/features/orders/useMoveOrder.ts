@@ -17,8 +17,8 @@ export function useMoveOrder() {
           return rpc("update_delivery_status", { p_delivery: mv.delivery, p_status: mv.to, p_note: null, p_failure_reason: null, p_proof_paths: [] });
         case "complete_step":
           return rpc("complete_production_step", { p_step: mv.step });
-        case "revert_step":
-          return rpc("revert_production_step", { p_step: mv.step, p_reason: null });
+        case "undo":
+          return rpc("undo_order_step", { p_order: id, p_reason: null });
         case "capture":
           return;
       }

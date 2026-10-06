@@ -28,7 +28,7 @@ export const POST = handle(async (request) => {
 
   const { data: claimed } = await db
     .from("notifications")
-    .update({ status: "sending", attempts: n.attempts + 1 })
+    .update({ status: "sending", attempts: n.attempts + 1, claimed_at: new Date().toISOString() })
     .eq("id", n.id)
     .in("status", ["pending", "failed"])
     .select("id");

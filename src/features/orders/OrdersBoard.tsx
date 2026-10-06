@@ -86,13 +86,20 @@ export function OrdersBoard() {
   // Live: whatever anyone changes shows up here.
   useEffect(() => {
     if (!tenantId) return;
-    const refresh = () => qc.invalidateQueries({ queryKey: ["board", tenantId] });
+    // A single action touches several rows (order, phases, stops): refetch
+    // once per burst of changes, not once per row.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => qc.invalidateQueries({ queryKey: ["board", tenantId] }), 400);
+    };
     const channel = supabase.channel(`board-${tenantId}`);
     for (const table of ["orders", "order_production_steps", "deliveries"]) {
       channel.on("postgres_changes", { event: "*", schema: "public", table, filter: `tenant_id=eq.${tenantId}` }, refresh);
     }
     channel.subscribe();
     return () => {
+      clearTimeout(timer);
       supabase.removeChannel(channel);
     };
   }, [tenantId, qc]);
@@ -175,7 +182,7 @@ export function OrdersBoard() {
     setDragging(null);
     setOver(null);
     if (!d || d.col === target) return;
-    const o = allActive.find((x) => x.id === d.id);
+    const o = allActive.find((x) => x.id === d.id) ?? q.data?.delivered.find((x) => x.id === d.id);
     if (!o) return;
     run(o, target > d.col ? nextMove(flow(o), actor) : prevMove(flow(o), actor), target < d.col);
   };
@@ -248,7 +255,7 @@ export function OrdersBoard() {
                         key={o.id}
                         order={o}
                         next={col.key === "delivered" ? null : nextMove(flow(o), actor)}
-                        prev={col.key === "delivered" ? null : prevMove(flow(o), actor)}
+                        prev={prevMove(flow(o), actor)}
                         busy={pendingId === o.id}
                         stepWho={(() => {
                           const s = o.status === "in_production" ? o.order_production_steps.find((x) => x.id === o.current_step_id) : null;
@@ -271,7 +278,7 @@ export function OrdersBoard() {
                           setDragging(null);
                           setOver(null);
                         }}
-                        draggable={col.key !== "delivered"}
+                        draggable
                       />
                     ))
                   ))}

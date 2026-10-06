@@ -8,6 +8,7 @@ import { stepActions, type Actor, type ProductionStepLike } from "./production.j
 
 export interface FlowStep extends ProductionStepLike {
   name: string;
+  completed_by?: string | null;
 }
 
 export interface FlowStop {
@@ -29,7 +30,8 @@ export type Move =
   | { kind: "status"; to: OrderStatus }
   | { kind: "stop"; delivery: string; to: "completed" | "en_route" }
   | { kind: "complete_step"; step: string }
-  | { kind: "revert_step"; step: string }
+  /** One step back, whatever it is (public.undo_order_step decides). */
+  | { kind: "undo" }
   /** Nothing to move: open the order to capture its services. */
   | { kind: "capture" };
 
@@ -77,19 +79,41 @@ export function nextMove(o: FlowOrder, a: FlowAccess): FlowMove | null {
   }
 }
 
+/**
+ * Going back one step, for fat-finger mistakes. Mirrors
+ * public.undo_order_step, which makes the change (and checks permissions).
+ */
 export function prevMove(o: FlowOrder, a: FlowAccess): FlowMove | null {
-  if (!a.can("production.manage")) return null;
+  const undo = (label: string): FlowMove => ({ label, move: { kind: "undo" } });
   const steps = ordered(o.steps);
-  if (o.status === "in_production") {
-    const i = steps.findIndex((s) => s.id === o.current_step_id);
-    const prev = i > 0 ? steps[i - 1] : null;
-    return prev ? { label: `Regresar a ${prev.name}`, move: { kind: "revert_step", step: prev.id } } : null;
+  switch (o.status) {
+    case "delivered":
+    case "out_for_delivery":
+      return a.can("orders.edit", "delivery.manage") ? undo("Regresar a Listas") : null;
+    case "in_production":
+    case "ready": {
+      const lastDone = [...steps].reverse().find((s) => s.status === "done");
+      const last = [...steps].reverse().find((s) => s.status === "done" || s.status === "skipped");
+      if (last) {
+        // "Marcar lista" skips every pending phase at once: they come back together.
+        const target = last.status === "skipped" ? (steps.find((s) => s.status === "skipped" && s.position > (lastDone?.position ?? 0)) ?? last) : last;
+        const allowed = a.can_manage || (a.can_work && !!last.completed_by && last.completed_by === a.user_id);
+        return allowed ? undo(`Regresar a ${target.name}`) : null;
+      }
+      if (o.status === "ready") return a.can_manage ? undo("Regresar a producción") : null;
+      return beforeProduction(o, a, undo);
+    }
+    case "picked_up":
+      return beforeProduction(o, a, undo);
+    default:
+      return null;
   }
-  if (o.status === "ready") {
-    const last = [...steps].reverse().find((s) => s.status === "done" || s.status === "skipped");
-    return last
-      ? { label: `Regresar a ${last.name}`, move: { kind: "revert_step", step: last.id } }
-      : { label: "Regresar a producción", move: { kind: "status", to: "in_production" } };
-  }
-  return null;
+}
+
+function beforeProduction(o: FlowOrder, a: FlowAccess, undo: (label: string) => FlowMove): FlowMove | null {
+  if (!a.can("orders.edit")) return null;
+  const pickup = o.deliveries.some((d) => d.type === "pickup" && (d.status === "completed" || d.status === "cancelled"));
+  if (pickup) return undo("Regresar a por recolectar");
+  // Counter orders begin in production: nothing earlier to go back to.
+  return o.fulfillment === "delivery" ? undo("Deshacer recibida") : null;
 }

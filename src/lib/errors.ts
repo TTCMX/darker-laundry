@@ -10,6 +10,8 @@ const MESSAGES: [RegExp, string][] = [
   [/counter orders are not enabled/i, "Tu lavandería está configurada como todo a domicilio: no maneja órdenes de mostrador."],
   [/operation model comes from your plan/i, "El tipo de operación depende de tu plan. Para cambiarlo hay que cambiar de plan."],
   [/open orders of the other kind: (\d+)/i, "Hay órdenes abiertas del otro tipo. Termínalas o cancélalas antes de cambiar el tipo de operación."],
+  [/nothing to undo/i, "No hay un paso anterior al cual regresar."],
+  [/only a manager can reopen someone else's phase/i, "Solo un gerente puede regresar una fase que marcó otra persona."],
   [/the step is assigned to someone else/i, "Esta fase está asignada a otra persona."],
   [/take the step before/i, "Primero toma la fase."],
   [/previous steps are not finished/i, "Termina primero las fases anteriores."],

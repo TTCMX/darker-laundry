@@ -60,6 +60,21 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), devApi()],
     server: { port: 5173 },
-    build: { chunkSizeWarningLimit: 900 },
+    build: {
+      chunkSizeWarningLimit: 900,
+      rollupOptions: {
+        output: {
+          // Libraries in their own files: they don't change between deploys,
+          // so phones keep them cached and only download the app's own code.
+          manualChunks(id: string) {
+            if (!id.includes("node_modules")) return undefined;
+            if (id.includes("@supabase")) return "vendor-supabase";
+            if (id.includes("@tanstack")) return "vendor-query";
+            if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler)\//.test(id)) return "vendor-react";
+            return undefined;
+          },
+        },
+      },
+    },
   };
 });
