@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedReadOnly, planInfo } from "./plan.js";
+import { allowedReadOnly, planInfo, tenantAccess } from "./plan.js";
 
 const now = new Date("2026-10-01T12:00:00Z");
 const base = { plan: "trial", plan_status: "active", created_at: "2026-09-01T12:00:00Z", trial_ends_at: "2026-12-01T12:00:00Z", access: "full" as const };
@@ -28,5 +28,12 @@ describe("plan", () => {
     expect(allowedReadOnly("orders.create")).toBe(false);
     expect(allowedReadOnly("payments.record")).toBe(false);
     expect(allowedReadOnly("delivery.execute")).toBe(false);
+  });
+  it("access mirrors app.tenant_access (used by the API)", () => {
+    const now = new Date("2026-10-05T12:00:00Z");
+    expect(tenantAccess({ plan: "trial", plan_status: "active", trial_ends_at: "2026-12-01T00:00:00Z" }, now)).toBe("full");
+    expect(tenantAccess({ plan: "trial", plan_status: "active", trial_ends_at: "2026-10-01T00:00:00Z" }, now)).toBe("read_only");
+    expect(tenantAccess({ plan: "internal", plan_status: "active", trial_ends_at: "2026-10-01T00:00:00Z" }, now)).toBe("full");
+    expect(tenantAccess({ plan: "pro", plan_status: "suspended", trial_ends_at: null }, now)).toBe("read_only");
   });
 });

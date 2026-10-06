@@ -1,4 +1,5 @@
 import { PERMISSION_CODES, type Permission } from "../../src/domain/permissions.js";
+import { allowedReadOnly, tenantAccess } from "../../src/domain/plan.js";
 import { HttpError } from "./http.js";
 import { adminClient } from "./supabase.js";
 
@@ -28,14 +29,19 @@ export async function requireMember(userId: string, tenantId: string): Promise<M
   const db = adminClient();
   const { data: member } = await db
     .from("tenant_members")
-    .select("role_id, roles!inner(is_owner)")
+    .select("role_id, roles!inner(is_owner), tenants!inner(plan, plan_status, trial_ends_at)")
     .eq("tenant_id", tenantId)
     .eq("user_id", userId)
     .eq("active", true)
     .maybeSingle();
   if (!member) throw new HttpError(403, "Not a member of this business");
 
-  const role = (member as unknown as { role_id: string; roles: { is_owner: boolean } }).roles;
+  const row = member as unknown as {
+    role_id: string;
+    roles: { is_owner: boolean };
+    tenants: { plan: string; plan_status: string; trial_ends_at: string | null };
+  };
+  const role = row.roles;
   let permissions: Permission[];
   if (role.is_owner) {
     permissions = PERMISSION_CODES;
@@ -43,6 +49,8 @@ export async function requireMember(userId: string, tenantId: string): Promise<M
     const { data } = await db.from("role_permissions").select("permission").eq("role_id", member.role_id);
     permissions = (data ?? []).map((r) => r.permission as Permission);
   }
+  // Trial over / suspended: read-only, exactly like the database enforces.
+  if (tenantAccess(row.tenants) === "read_only") permissions = permissions.filter(allowedReadOnly);
   return { tenant_id: tenantId, permissions: new Set(permissions) };
 }
 

@@ -122,9 +122,10 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const tenant = memberships.find((m) => m.tenant_id === selected) ?? memberships[0] ?? null;
   const settings = useMemo(() => resolveSettings(tenant?.settings), [tenant?.settings]);
 
-  useEffect(() => {
-    if (tenant) setFormatContext({ currency: tenant.currency, timezone: tenant.timezone, locale: settings.locale });
-  }, [tenant, settings.locale]);
+  // During render, not in an effect: children's effects (their first queries,
+  // e.g. "today" for the board or the stop counter) run before this
+  // component's effects and would otherwise use UTC and the default currency.
+  if (tenant) setFormatContext({ currency: tenant.currency, timezone: tenant.timezone, locale: settings.locale });
 
   // Read-only business (trial over): only what the database still allows.
   const perms = useMemo(

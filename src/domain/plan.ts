@@ -16,6 +16,13 @@ export const READ_ONLY_EXTRA: Permission[] = ["settings.manage", "team.manage"];
 
 export const allowedReadOnly = (p: Permission) => p.endsWith(".view") || READ_ONLY_EXTRA.includes(p);
 
+/** Same rule as app.tenant_access in the database. */
+export function tenantAccess(t: { plan: string; plan_status: string; trial_ends_at: string | null }, now = new Date()): Access {
+  if (t.plan_status === "suspended" || t.plan_status === "cancelled") return "read_only";
+  if (t.plan === "trial" && t.trial_ends_at && new Date(t.trial_ends_at).getTime() <= now.getTime()) return "read_only";
+  return "full";
+}
+
 export interface PlanState {
   plan: string;
   plan_status: string;

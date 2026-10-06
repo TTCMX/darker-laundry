@@ -32,7 +32,7 @@ export async function dispatchTenant(db: SupabaseClient, tenantId: string, limit
   for (const n of queued ?? []) {
     const { data: claimed } = await db
       .from("notifications")
-      .update({ status: "sending", attempts: n.attempts + 1 })
+      .update({ status: "sending", attempts: n.attempts + 1, claimed_at: new Date().toISOString() })
       .eq("id", n.id)
       .eq("status", "pending")
       .select("id");
@@ -70,11 +70,13 @@ export async function dispatchAll(db: SupabaseClient) {
   const tenants = [...new Set((data ?? []).map((r) => r.tenant_id as string))];
   const results: Record<string, unknown> = {};
   for (const t of tenants) results[t] = await dispatchTenant(db, t);
-  // Rows stuck in "sending" (a crashed run) go back to the queue.
+  // Rows stuck in "sending" (a crashed run) go back to the queue; ones a run
+  // claimed in the last 15 minutes may still be in flight.
+  const stale = new Date(Date.now() - 15 * 60_000).toISOString();
   await db
     .from("notifications")
     .update({ status: "pending" })
     .eq("status", "sending")
-    .lt("created_at", new Date(Date.now() - 15 * 60_000).toISOString());
+    .or(`claimed_at.lt.${stale},and(claimed_at.is.null,created_at.lt.${stale})`);
   return results;
 }
