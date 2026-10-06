@@ -359,6 +359,8 @@ export interface TeamMember {
   role_name: string;
   role_home: "backoffice" | "courier";
   is_owner: boolean;
+  /** Can run deliveries (Courier role, or staff with delivery.execute). */
+  can_deliver?: boolean;
   email: string | null;
 }
 

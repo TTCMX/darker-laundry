@@ -229,6 +229,7 @@ Requiere la migración `20261005000001_cancel_and_delete_orders.sql`.
 - **Archivo** busca cualquier orden, incluidas las entregadas y canceladas.
 - **¿Te equivocaste de dedo?** Cualquier paso se puede regresar (botón ↶ de la tarjeta, deslizar a la izquierda o arrastrar a la columna anterior): una fase marcada por error, una entrega, "En ruta" o una recolección. El personal de producción puede regresar las fases que marcó; las de otra persona, solo un gerente. Queda en la bitácora. Requiere la migración `20261006000001_undo_order_step.sql`.
 - `20261007000001_audit_fixes.sql` (correcciones de la auditoría): si una orden lista regresa a producción, se cancela la entrega que se había programado sola (vuelve a programarse al quedar lista); el envío de correos ya no puede duplicarse; índices para el tablero.
+- **Sin couriers**: si el negocio aún no tiene a nadie con rol Courier, la ruta y las paradas se pueden asignar al equipo administrativo (Dueño, Gerente o cualquier rol con "Ejecutar rutas"), que la trabaja desde su *Vista courier*. Si solo hay una persona que puede repartir, se le asigna sola. Requiere `20261008000001_admin_couriers.sql`.
 
 ## 6. Desarrollo local
 

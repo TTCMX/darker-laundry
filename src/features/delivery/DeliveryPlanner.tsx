@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Page } from "../../app/Shell";
 import { dateOnly, money, todayISO } from "../../lib/format";
-import { rpc, useAction, useMemberNames, useTeam } from "../../lib/queries";
+import { rpc, useAction, useMemberNames, useTeam, deliveryPeople } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
 import type { Delivery, Route } from "../../lib/types";
@@ -96,7 +96,7 @@ function Planner() {
 
   return (
     <Page
-      title="Entregas"
+      title="Ruta"
       actions={
         <input className="input sm" type="date" value={day} onChange={(e) => setDay(e.target.value)} aria-label="Día" style={{ width: 160 }} />
       }
@@ -179,7 +179,7 @@ function Planner() {
           stops={stops}
           elsewhere={elsewhere}
           unscheduled={readyUnscheduled}
-          couriers={(team.data ?? []).filter((m) => m.active && m.role_home === "courier")}
+          couriers={deliveryPeople(team.data)}
           onClose={() => setEditing(null)}
         />
       )}
@@ -244,7 +244,7 @@ function RouteDialog({
   stops: Stop[];
   elsewhere: Stop[];
   unscheduled: Unscheduled[];
-  couriers: { user_id: string; display_name: string }[];
+  couriers: { user_id: string; display_name: string; role_home: string; role_name: string }[];
   onClose: () => void;
 }) {
   const { tenantId } = useTenant();
@@ -334,9 +334,15 @@ function RouteDialog({
       <div className="col gap-16">
         <div className="grid cols-2">
           <TextField label="Nombre" placeholder="Ruta mañana" value={nameValue} onChange={(e) => setName(e.target.value)} />
-          <Select label="Courier" value={courier} onChange={(e) => setCourier(e.target.value)} placeholder="Sin courier" options={couriers.map((c) => ({ value: c.user_id, label: c.display_name }))} />
+          <Select label="Courier" value={courier} onChange={(e) => setCourier(e.target.value)} placeholder="Sin courier" options={couriers.map((c) => ({ value: c.user_id, label: c.role_home === "courier" ? c.display_name : `${c.display_name} · ${c.role_name}` }))} />
         </div>
-        {couriers.length === 0 && <Banner tone="warning">No hay couriers. Invita a alguien con el rol Courier desde Equipo.</Banner>}
+        {couriers.length === 0 ? (
+          <Banner tone="warning">No hay quién haga entregas. Invita a alguien con el rol Courier desde Equipo.</Banner>
+        ) : (
+          couriers[0]!.role_home !== "courier" && (
+            <Banner>Aún no tienes couriers: la ruta la puede tomar alguien del equipo administrativo, desde su “Vista courier”.</Banner>
+          )
+        )}
         <div className="title-s">Paradas en orden</div>
         <div className="list card flush">
           {selected.map((id, i) => {
