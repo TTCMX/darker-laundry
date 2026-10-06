@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "../../domain/payments";
 import { newIdempotencyKey } from "../../lib/api";
 import { centsToInput, inputToCents, money, todayISO } from "../../lib/format";
-import { rpc, uploadEvidence, useAction, useTeam } from "../../lib/queries";
+import { rpc, uploadEvidence, useAction, useTeam, deliveryPeople } from "../../lib/queries";
 import { useTenant } from "../../lib/session";
 import { supabase } from "../../lib/supabase";
 import type { Address, Delivery, Order, Payment, ProductionStep, QualityIssue } from "../../lib/types";
@@ -139,7 +139,7 @@ export function ScheduleDialog({
 }) {
   const { settings } = useTenant();
   const team = useTeam();
-  const couriers = (team.data ?? []).filter((m) => m.active && m.role_home === "courier");
+  const couriers = deliveryPeople(team.data);
   const windows = settings.delivery.windows;
   const [date, setDate] = useState(todayISO());
   const [windowId, setWindowId] = useState("");
@@ -198,7 +198,7 @@ export function ScheduleDialog({
           value={courier}
           onChange={(e) => setCourier(e.target.value)}
           placeholder={couriers.length === 1 ? `Automático (${couriers[0]!.display_name})` : "Sin asignar"}
-          options={couriers.map((c) => ({ value: c.user_id, label: c.display_name }))}
+          options={couriers.map((c) => ({ value: c.user_id, label: c.role_home === "courier" ? c.display_name : `${c.display_name} · ${c.role_name}` }))}
         />
         <TextArea label="Notas para el courier" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
       </div>
@@ -393,7 +393,7 @@ export function ReasonDialog({
 export function EditStopDialog({ stop, onClose }: { stop: Delivery; onClose: () => void }) {
   const { settings, can } = useTenant();
   const team = useTeam();
-  const couriers = (team.data ?? []).filter((m) => m.active && m.role_home === "courier");
+  const couriers = deliveryPeople(team.data);
   const addresses = useQuery({
     queryKey: ["order-addresses", stop.order_id],
     queryFn: async () => {
@@ -477,7 +477,7 @@ export function EditStopDialog({ stop, onClose }: { stop: Delivery; onClose: () 
             value={courier}
             onChange={(e) => setCourier(e.target.value)}
             placeholder="Sin asignar"
-            options={couriers.map((c) => ({ value: c.user_id, label: c.display_name }))}
+            options={couriers.map((c) => ({ value: c.user_id, label: c.role_home === "courier" ? c.display_name : `${c.display_name} · ${c.role_name}` }))}
           />
           <TextArea label="Notas para el courier" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           {stop.route_id && date !== stop.scheduled_date && (

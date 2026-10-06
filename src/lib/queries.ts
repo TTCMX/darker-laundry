@@ -98,6 +98,15 @@ export function useWorkflows() {
   });
 }
 
+/**
+ * Who can take a route: the couriers or, when the business has none, the
+ * administrative staff who can run deliveries (Dueño, Gerente…).
+ */
+export function deliveryPeople(team: TeamMember[] = []) {
+  const couriers = team.filter((m) => m.active && m.role_home === "courier");
+  return couriers.length ? couriers : team.filter((m) => m.active && m.can_deliver);
+}
+
 /** Member names by user id, for "assigned to / completed by". */
 export function useMemberNames() {
   const team = useTeam();
